@@ -355,6 +355,7 @@ class TrendAgentSyncService
         }
 
         $pathsToCheck = [
+            ['data', 'list'],      // Real TrendAgent API (probe 2026-02-11)
             ['data', 'results'],
             ['data', 'items'],
             ['items'],
