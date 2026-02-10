@@ -8,72 +8,86 @@ use Illuminate\Console\Command;
 
 class TrendagentAuthLogin extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    protected $signature = 'trendagent:auth:login {phone} {password} {--lang=ru}';
+    protected $signature = 'trendagent:auth:login
+        {--phone= : Phone number (optional, falls back to TRENDAGENT_DEFAULT_PHONE)}
+        {--password= : Password (optional, falls back to TRENDAGENT_DEFAULT_PASSWORD)}
+        {--lang= : Language (default from TRENDAGENT_DEFAULT_LANG or ru)}';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Login to TrendAgent SSO and store refresh_token in the database';
+    protected $description = 'Login to TrendAgent SSO and store refresh_token (no interactive prompt)';
 
-    /**
-     * Execute the console command.
-     */
-    public function handle()
+    public function handle(TrendAuthService $auth, TrendSsoClient $sso): int
     {
-        /** @var TrendAuthService $auth */
-        $auth = app(TrendAuthService::class);
-        /** @var TrendSsoClient $sso */
-        $sso = app(TrendSsoClient::class);
+        $phone = $this->option('phone') !== null && (string) $this->option('phone') !== ''
+            ? (string) $this->option('phone')
+            : (string) config('trendagent.default_phone', '');
 
-        $phone = (string) $this->argument('phone');
-        $password = (string) $this->argument('password');
-        $lang = (string) $this->option('lang');
-
-        $this->info(sprintf('Logging into TrendAgent SSO as %s...', $phone));
-
-        $refreshToken = null;
-        try {
-            $result = $sso->login($phone, $password, $lang);
-            $refreshToken = $result['refresh_token'] ?? null;
-            if (($result['needs_manual_token'] ?? false) === true) {
-                $refreshToken = null;
-            }
-        } catch (\Throwable $e) {
-            $this->error($e->getMessage());
-            $this->newLine();
-            $this->warn('You can still save a refresh_token from your browser:');
+        if ($phone === '') {
+            $this->error('Phone not provided. Use --phone or set TRENDAGENT_DEFAULT_PHONE in .env');
+            return self::FAILURE;
         }
 
+        $password = $this->option('password') !== null && (string) $this->option('password') !== ''
+            ? (string) $this->option('password')
+            : (string) config('trendagent.default_password', '');
+
+        if ($password === '') {
+            $this->error('Password not provided. Use --password or set TRENDAGENT_DEFAULT_PASSWORD in .env');
+            return self::FAILURE;
+        }
+
+        $langOpt = $this->option('lang');
+        $lang = ($langOpt !== null && (string) $langOpt !== '')
+            ? (string) $langOpt
+            : (string) config('trendagent.default_lang', 'ru');
+
+        $this->info('Logging into TrendAgent SSO...');
+
+        try {
+            $result = $sso->login($phone, $password, $lang);
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+            $this->printSaveRefreshInstruction();
+            return self::FAILURE;
+        }
+
+        if (($result['needs_manual_token'] ?? false) === true) {
+            $this->error('SSO login blocked. Use: php artisan trendagent:auth:save-refresh <token>');
+            $this->printSaveRefreshInstruction();
+            return self::FAILURE;
+        }
+
+        $refreshToken = $result['refresh_token'] ?? null;
         if (empty($refreshToken)) {
-            $this->line('  - Log in at https://spb.trendagent.ru with this account.');
-            $this->line('  - DevTools → Application → Cookies → copy "refresh_token" value.');
-            $this->line('  - Or Network → SSO response → Set-Cookie header.');
-
-            $manual = $this->secret('Paste the refresh_token here (input will be hidden):');
-
-            if (! $manual) {
-                $this->error('No refresh_token provided. Aborting.');
-
-                return self::FAILURE;
-            }
-
-            $refreshToken = $manual;
+            $this->error('SSO login blocked. Use: php artisan trendagent:auth:save-refresh <token>');
+            $this->printSaveRefreshInstruction();
+            return self::FAILURE;
         }
 
         $session = $auth->storeSessionFromRefreshToken($phone, $refreshToken);
 
         $this->info('TrendAgent SSO login successful.');
         $this->line('Provider: ' . $session->provider);
-        $this->line('Phone: ' . $session->phone);
+        $this->line('Phone: ' . $this->maskPhone($session->phone));
         $this->line('Last login at: ' . $session->last_login_at);
 
         return self::SUCCESS;
+    }
+
+    private function printSaveRefreshInstruction(): void
+    {
+        $this->newLine();
+        $this->line('  1. Log in at https://spb.trendagent.ru in your browser.');
+        $this->line('  2. DevTools → Application → Cookies → copy "refresh_token" value.');
+        $this->line('  3. Run: php artisan trendagent:auth:save-refresh <token>');
+        $this->line('     (or with --phone= if not using TRENDAGENT_DEFAULT_PHONE).');
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        $len = strlen($phone);
+        if ($len <= 4) {
+            return '***';
+        }
+        return substr($phone, 0, 2) . str_repeat('*', min($len - 4, 6)) . substr($phone, -2);
     }
 }

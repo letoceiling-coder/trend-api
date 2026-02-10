@@ -140,6 +140,58 @@
 
 Это позволяет фронтенду на Vite/Vue (`http://localhost:5173`) ходить к API на `http://127.0.0.1:8000/api/*`.
 
+### TrendAgent SSO: логин
+
+Команда логина **без интерактивного ввода** (удобно на сервере и в CI):
+
+```bash
+cd backend
+php artisan trendagent:auth:login
+```
+
+- **Телефон**: если не передан `--phone`, берётся из `TRENDAGENT_DEFAULT_PHONE` в `.env`. Если ни то ни другое — команда выведет ошибку и завершится.
+- **Пароль**: аналогично `--password` или `TRENDAGENT_DEFAULT_PASSWORD`.
+- **Язык**: `--lang` или `TRENDAGENT_DEFAULT_LANG` (по умолчанию `ru`).
+
+Пример с опциями:
+
+```bash
+php artisan trendagent:auth:login --phone=+79045393434 --password=secret --lang=ru
+```
+
+Если SSO блокирует запрос (например 403), команда выведет сообщение и инструкцию: сохранить `refresh_token` из браузера через:
+
+```bash
+php artisan trendagent:auth:save-refresh <token>
+```
+
+(при необходимости указать `--phone=` если не задан `TRENDAGENT_DEFAULT_PHONE`).
+
+**Безопасность:** телефон и пароль не логируются; в выводе команды номер маскируется. Не коммитьте `.env` в репозиторий и не добавляйте `TRENDAGENT_DEFAULT_PASSWORD` в `.env.example`.
+
+### Деплой на сервере
+
+На сервере (после `git pull` или вручную) обновить код и зависимости одной командой:
+
+```bash
+cd backend
+php artisan deploy:server
+```
+
+По умолчанию выполняются: `composer install --no-dev`, миграции, `config:cache`, `route:cache`, `view:cache`, `queue:restart`, сборка фронтенда (`frontend/npm ci && npm run build`).
+
+Опции:
+
+- `--pull` — перед деплоем выполнить `git pull` в корне репозитория;
+- `--skip-composer` — не запускать composer;
+- `--skip-migrate` — не запускать миграции;
+- `--skip-cache` — не кешировать config/route/view;
+- `--skip-frontend` — не собирать фронтенд;
+- `--skip-queue` — не выполнять `queue:restart`;
+- `--dry-run` — только показать команды, не выполнять.
+
+Команда `php artisan deploy` (без `:server`) предназначена для запуска с локальной машины: push в git и выполнение шагов по SSH на сервере (см. `config/deploy.php` и переменные `DEPLOY_*` в `.env`).
+
 ---
 
 ## Frontend (Vue 3 + Vite, папка `frontend/`)

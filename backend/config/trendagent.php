@@ -3,31 +3,60 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | SSO base URL
+    | SSO API base URL
     |--------------------------------------------------------------------------
-    |
-    | Базовый URL для получения auth_token через SSO API.
-    |
     */
     'sso_base' => env('TRENDAGENT_SSO_BASE', 'https://sso-api.trend.tech'),
 
     /*
     |--------------------------------------------------------------------------
-    | Application id for SSO
+    | SSO web base (login page, Origin/Referer)
     |--------------------------------------------------------------------------
-    |
-    | Идентификатор клиентского приложения, который передаётся в SSO при логине.
-    |
+    */
+    'sso_web_base' => env('TRENDAGENT_SSO_WEB_BASE', 'https://sso.trend.tech'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | SSL verify (set false only for local dev if needed)
+    |--------------------------------------------------------------------------
+    */
+    'sso_verify' => filter_var(env('TRENDAGENT_SSO_VERIFY', true), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    |--------------------------------------------------------------------------
+    | User-Agent for SSO requests (browser-like)
+    |--------------------------------------------------------------------------
+    */
+    'user_agent' => env('TRENDAGENT_USER_AGENT', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application id for SSO (fallback if not extracted from login page)
+    |--------------------------------------------------------------------------
     */
     'app_id' => env('TRENDAGENT_APP_ID'),
 
     /*
     |--------------------------------------------------------------------------
-    | Defaults
+    | Regex to extract app_id from HTML (first capture group = app_id)
+    |--------------------------------------------------------------------------
+    */
+    'app_id_regex' => [
+        '/app_id["\']?\s*[:=]\s*["\']([a-f0-9]{24})["\']/i',
+        '/["\']([a-f0-9]{24})["\'].*app_id/i',
+        '/login\?app_id=([a-f0-9]{24})/i',
+        '/app_id=([a-f0-9]{24})/i',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Defaults (optional; can be overridden by command options)
     |--------------------------------------------------------------------------
     */
     'default_city_id' => env('TRENDAGENT_DEFAULT_CITY_ID'),
     'default_lang' => env('TRENDAGENT_DEFAULT_LANG', 'ru'),
+    'default_phone' => env('TRENDAGENT_DEFAULT_PHONE'),
+    'default_password' => env('TRENDAGENT_DEFAULT_PASSWORD'),
 
     /*
     |--------------------------------------------------------------------------
