@@ -1,0 +1,30 @@
+{
+  "route": "/object/{slug}/checkerboard",
+  "uiType": "checkerboard",
+  "rootSelector": "[class*=\"checkerboard\"]",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/{id}/unified",
+      "method": "GET",
+      "purpose": "block detail",
+      "requiredParams": ["city", "lang"],
+      "responseEntities": ["Block"]
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/apartments/search",
+      "method": "POST",
+      "purpose": "apartments for checkerboard grid (by section/floor)",
+      "requiredParams": ["city", "lang", "block_id", "filters"],
+      "responseEntities": ["Apartment"]
+    }
+  ],
+  "renderedEntities": ["Apartment"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".checkerboard-filter" },
+    { "name": "BuildingTabs", "selector": "Корп. 1, etc." },
+    { "name": "SectionHeader", "selector": "секция 1 - Сдан" },
+    { "name": "GridContainer", "selector": ".checkerboard-container__sections-container" },
+    { "name": "FlatCell", "selector": "clickable flat cell (type, №, price, status)" }
+  ],
+  "notes": "Floor rows (5,4,3,2,1), section; each cell = apartment. Toggles: Скрыть не попавшие в фильтр, Скрыть проданные, Скрыть забронированные."
+}

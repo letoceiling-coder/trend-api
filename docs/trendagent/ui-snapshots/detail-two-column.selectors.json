@@ -1,0 +1,18 @@
+{
+  "root": "#flatpage .page-layout__content",
+  "filtersPanel": null,
+  "viewSwitch": null,
+  "listContainer": null,
+  "card": null,
+  "table": null,
+  "tableRow": null,
+  "pagination": null,
+  "sidebar": ".flat-page__container .apartment-row + .apartment-row",
+  "map": ".flat-page__container .apartment-row + .apartment-row .ymaps-2-1-79-map, .flat-page__container .apartment-row + .apartment-row [class*=\"ymaps\"]",
+  "tabs": null,
+  "ctaBlock": ".flat-page__container .apartment-row .apartment-row--actions",
+  "leftColumn": ".flat-page__container .apartment-header",
+  "rightColumn": ".flat-page__container .apartment-row .apartment-row--actions + .apartment-row",
+  "attributesTable": ".flat-page__container .apartment-row [class*=\"apartment\"] [class*=\"S общая\"]",
+  "objectBlock": ".flat-page__container .apartment-row + .apartment-row [class*=\"Срок сдачи\"]"
+}

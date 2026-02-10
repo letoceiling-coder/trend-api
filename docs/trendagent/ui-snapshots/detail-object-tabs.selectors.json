@@ -1,0 +1,15 @@
+{
+  "root": "#objectpage .page-layout__content",
+  "filtersPanel": null,
+  "viewSwitch": null,
+  "listContainer": null,
+  "card": null,
+  "table": null,
+  "tableRow": null,
+  "pagination": null,
+  "sidebar": null,
+  "map": null,
+  "tabs": "[class*=\"tab\"]",
+  "ctaBlock": null,
+  "gallery": ".object-gallery"
+}

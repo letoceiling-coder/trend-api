@@ -1,0 +1,37 @@
+{
+  "route": "/objects/list",
+  "uiType": "list",
+  "rootSelector": "#searchpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/search",
+      "method": "POST",
+      "purpose": "list of complexes (blocks)",
+      "requiredParams": ["city", "lang", "auth_token", "filters", "limit", "offset", "sort"],
+      "responseEntities": ["Block"]
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/search/count",
+      "method": "POST",
+      "purpose": "total count for filters",
+      "requiredParams": ["city", "lang", "filters"],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "https://apartment-api.trendagent.ru/v1/directories",
+      "method": "GET",
+      "purpose": "filter options (rooms, deadlines, locations, etc.)",
+      "requiredParams": ["types", "city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Block", "Apartment"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".apartments-filter_search" },
+    { "name": "ViewSwitch", "selector": ".objects-header__view-group" },
+    { "name": "PrelaunchBlock", "selector": ".objects-prelaunch" },
+    { "name": "ListContainer", "selector": ".objects-list" },
+    { "name": "Card", "selector": ".house-card" }
+  ],
+  "notes": "List of complexes with horizontal cards; prelaunch block above list; view switch to table/plans/map."
+}

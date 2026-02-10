@@ -1,0 +1,29 @@
+{
+  "route": "/villages/list",
+  "uiType": "list",
+  "rootSelector": "#villages .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/search",
+      "method": "POST",
+      "purpose": "list of villages (blocks filtered by type)",
+      "requiredParams": ["city", "lang", "auth_token", "filters", "limit", "offset", "sort"],
+      "responseEntities": ["Block"]
+    },
+    {
+      "endpoint": "https://apartment-api.trendagent.ru/v1/directories",
+      "method": "GET",
+      "purpose": "filter options (locations, regions, land_purpose, etc.)",
+      "requiredParams": ["types", "city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Block", "Village"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".villagePlots-filter_search" },
+    { "name": "ViewSwitch", "selector": ".villages-tabs" },
+    { "name": "ListContainer", "selector": ".villages-list__wrapper" },
+    { "name": "Card", "selector": ".project-house-card" }
+  ],
+  "notes": "Entity-level list: each card is a village (project-house-card). Uses same blocks/search as objects; filter set differs (land_purpose, plot_square). Count shows 'N участков'."
+}

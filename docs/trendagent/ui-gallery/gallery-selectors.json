@@ -1,0 +1,17 @@
+{
+  "root": ".floorplan__container",
+  "viewport": ".floorplan__map.leaflet-container",
+  "loader": ".floorplan__loader",
+  "thumbnailsMenu": ".gallery-nav__menu[aria-label=\"Gallery navigation\"]",
+  "thumbnailItem": ".gallery-nav__item",
+  "thumbnailImage": ".gallery-nav__item img",
+  "modeToggleFloorplan": ".apartment-photogallery__slider_btn-floorplan",
+  "modeToggleFinish": ".apartment-photogallery__slider_btn:not(.apartment-photogallery__slider_btn-floorplan)",
+  "zoomInButton": ".leaflet-control-zoom-in",
+  "zoomOutButton": ".leaflet-control-zoom-out",
+  "rotateControl": ".leaflet-control-rotate, .leaflet-control-rotate-toggle",
+  "panControl": ".leaflet-control-pan, .leaflet-control-pan-up, .leaflet-control-pan-down, .leaflet-control-pan-left, .leaflet-control-pan-right",
+  "closeButton": null,
+  "slideCounter": null
+}
+

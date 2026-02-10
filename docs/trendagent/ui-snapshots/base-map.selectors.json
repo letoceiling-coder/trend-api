@@ -1,0 +1,14 @@
+{
+  "root": "#searchpage .page-layout__content",
+  "filtersPanel": ".page-layout__filter .apartments-filter_search",
+  "viewSwitch": null,
+  "listContainer": ".map-list-btn",
+  "card": null,
+  "table": null,
+  "tableRow": null,
+  "pagination": null,
+  "sidebar": "[class*=\"map\"][class*=\"sidebar\"]",
+  "map": "[class*=\"ymaps\"], [class*=\"map-container\"]",
+  "tabs": null,
+  "ctaBlock": null
+}

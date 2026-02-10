@@ -1,0 +1,13 @@
+const fs = require('fs');
+const path = require('path');
+const inputPath = process.argv[2];
+const outputPath = process.argv[3];
+const maxLen = parseInt(process.argv[4] || '85000', 10);
+let raw = fs.readFileSync(inputPath, 'utf8');
+const firstLine = raw.split('\n')[0];
+if (firstLine.startsWith('"')) raw = JSON.parse(firstLine);
+else raw = firstLine.replace(/^"\s*|\s*"$/g, '').replace(/\\"/g, '"');
+if (raw.length > maxLen) raw = raw.slice(0, maxLen) + '<!-- TRUNCATED -->';
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+fs.writeFileSync(outputPath, raw, 'utf8');
+console.log('Wrote', outputPath, 'length', raw.length);

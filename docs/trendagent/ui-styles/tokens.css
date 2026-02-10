@@ -1,0 +1,23 @@
+/* Сканирование UI‑CSS на наличие custom properties (--*).
+ *
+ * Проверены файлы в каталоге docs/trendagent/ui-styles/css/:
+ * - spb.trendagent.ru__styles.css
+ * - modules.trendagent.ru__apps__notfound__27__css__main.css
+ * - modules.trendagent.ru__apps__chats__147__css__main.css
+ * - modules.trendagent.ru__apps__notifications__12921__css__main.css
+ * - modules.trendagent.ru__apps__nps__12942__css__main.css
+ * - modules.trendagent.ru__apps__policies__12957__css__main.css
+ * - modules.trendagent.ru__apps__flatpage__12944__css__277.css
+ *
+ * Поиск по шаблону `--[a-zA-Z0-9_-]+` показал только BEM‑модификаторы вида `.page--lock`,
+ * но не объявления custom properties (`--color-primary: ...;`).
+ *
+ * Вывод:
+ * - на момент анализа **CSS‑переменные (custom properties) в UI‑CSS не используются**;
+ * - типографика, цвета и отступы заданы через обычные свойства (color, font-size, line-height, border-radius и т.п.).
+ *
+ * При появлении реальных custom properties их нужно:
+ * 1) доснять через сохранение соответствующих CSS‑бандлов,
+ * 2) зафиксировать ниже в виде списка токенов.
+ */
+

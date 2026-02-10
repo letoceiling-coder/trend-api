@@ -1,0 +1,14 @@
+{
+  "root": "#villages .page-layout__content",
+  "filtersPanel": ".page-layout__filter .villagePlots-filter_search",
+  "viewSwitch": ".villages-tabs",
+  "listContainer": ".villages-list__wrapper",
+  "card": ".villages-list .project-house-card",
+  "table": null,
+  "tableRow": null,
+  "pagination": null,
+  "sidebar": null,
+  "map": null,
+  "tabs": null,
+  "ctaBlock": null
+}

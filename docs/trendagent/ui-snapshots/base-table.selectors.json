@@ -1,0 +1,14 @@
+{
+  "root": "#searchpage .page-layout__content",
+  "filtersPanel": ".page-layout__filter .apartments-filter_search",
+  "viewSwitch": ".objects-header__view-group",
+  "listContainer": null,
+  "card": null,
+  "table": "table.table",
+  "tableRow": "table.table tbody tr.table-row",
+  "pagination": ".objects-pagination",
+  "sidebar": null,
+  "map": null,
+  "tabs": null,
+  "ctaBlock": null
+}

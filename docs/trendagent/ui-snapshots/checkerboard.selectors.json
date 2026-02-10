@@ -1,0 +1,16 @@
+{
+  "root": "[class*=\"checkerboard\"]",
+  "filtersPanel": ".checkerboard-filter",
+  "viewSwitch": null,
+  "listContainer": null,
+  "card": null,
+  "table": null,
+  "tableRow": null,
+  "pagination": null,
+  "sidebar": null,
+  "map": null,
+  "tabs": null,
+  "ctaBlock": null,
+  "gridContainer": ".checkerboard-container__sections-container",
+  "flatCell": "[class*=\"checkerboard\"][class*=\"cell\"]"
+}

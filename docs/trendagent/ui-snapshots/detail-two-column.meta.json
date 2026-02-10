@@ -1,0 +1,44 @@
+{
+  "route": "/object/{slug}/flat/{id}",
+  "uiType": "detail-two-column",
+  "rootSelector": "#flatpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/apartments/65c9f8c023bccf8025bfdbc2/unified/",
+      "method": "GET",
+      "purpose": "apartment unified detail",
+      "requiredParams": ["city", "lang", "auth_token"],
+      "responseEntities": ["Apartment"]
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/prices/apartment/65c9f8c023bccf8025bfdbc2/graph",
+      "method": "GET",
+      "purpose": "apartment price graph",
+      "requiredParams": ["city", "lang", "auth_token"],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/prices/apartment/65c9f8c023bccf8025bfdbc2/totals",
+      "method": "GET",
+      "purpose": "apartment price totals (summary block)",
+      "requiredParams": ["city", "lang", "auth_token"],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "https://contacts-api.trendagent.ru/contacts/apartments/65c9f8c023bccf8025bfdbc2",
+      "method": "GET",
+      "purpose": "contacts block for apartment",
+      "requiredParams": ["city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Apartment"],
+  "renderedBlocks": [
+    { "name": "Header", "selector": ".apartment-header" },
+    { "name": "GalleryFloorplan", "selector": ".flat-page__container [class*=\"apartment\"] [aria-label=\"Gallery navigation\"]" },
+    { "name": "PriceSummary", "selector": ".flat-page__container [class*=\"Цена за м²\"]" },
+    { "name": "AttributesSection", "selector": ".flat-page__container [class*=\"S общая\"]" },
+    { "name": "ContactsCta", "selector": ".flat-page__container button:contains(\"Контакты\"), .flat-page__container button:contains(\"Забронировать\")" }
+  ],
+  "notes": "Снимок detail-two-column получен с валидной страницы квартиры /object/villa-marina/flat/65c9f8c023bccf8025bfdbc2 после полной загрузки данных. DOM содержит левую колонку (заголовок, действия, viewer планировки/галереи), правую колонку (цена/итоги, атрибуты квартиры, блок об объекте/ЖК), блок CTA и контактов."
+}

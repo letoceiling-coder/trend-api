@@ -1,0 +1,42 @@
+{
+  "route": "/object/{slug}",
+  "uiType": "detail-tabs",
+  "rootSelector": "#objectpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/{id}/unified",
+      "method": "GET",
+      "purpose": "block detail",
+      "requiredParams": ["city", "lang"],
+      "responseEntities": ["Block"]
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/{id}/advantages",
+      "method": "GET",
+      "purpose": "advantages",
+      "requiredParams": [],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/{id}/nearby_places",
+      "method": "GET",
+      "purpose": "nearby places",
+      "requiredParams": [],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "rewards-api / files / video / contacts / 3d-tour",
+      "method": "GET",
+      "purpose": "media, contacts, rewards",
+      "requiredParams": [],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Block"],
+  "renderedBlocks": [
+    { "name": "Gallery", "selector": ".object-gallery" },
+    { "name": "Tabs", "selector": "[class*=\"tab\"]" },
+    { "name": "ActiveTabContent", "selector": "tab panel container" }
+  ],
+  "notes": "Object detail: gallery/hero, CTA, tabs (О проекте, Квартиры, Шахматка, Паркинги, Коммерция, etc.), active tab content."
+}

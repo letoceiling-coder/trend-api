@@ -1,0 +1,211 @@
+*,
+*:before,
+*:after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body,
+html {
+    font-size: 14px;
+}
+
+body {
+    font-weight: 400;
+    font-family: BlinkMacSystemFont, -apple-system, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+
+    -webkit-font-smoothing: antialiased !important;
+    -moz-osx-font-smoothing: grayscale !important;
+    text-rendering: optimizeLegibility !important;
+}
+
+/* глушилка типографики Андрея */
+h1,
+.h1,
+h2,
+.h2,
+h3,
+.h3,
+h4,
+.h4 {
+    margin: 0;
+}
+
+h1,
+.h1 {
+    font-size: 22px;
+    line-height: 27px;
+    margin-bottom: 20px;
+    letter-spacing: -0.05px;
+    color: #191919;
+}
+h2,
+.h2 {
+    font-size: 18px;
+    line-height: 24px;
+    margin-bottom: 20px;
+    letter-spacing: -0.05px;
+    color: #191919;
+}
+h3,
+.h3 {
+    font-size: 16px;
+    line-height: 22px;
+    margin-bottom: 20px;
+    letter-spacing: -0.05px;
+    color: #191919;
+}
+h4,
+.h4 {
+    font-size: 15px;
+    line-height: 21px;
+    margin-bottom: 20px;
+    letter-spacing: -0.05px;
+    color: #333333;
+}
+h5,
+.h5 {
+    font-size: 13px;
+    line-height: 18px;
+    margin-bottom: 20px;
+    letter-spacing: -0.05px;
+    color: #333333;
+}
+/* глушилка типографики Андрея */
+
+#apps {
+    min-height: calc(100vh - 60px);
+}
+
+#onboarding {
+    font-size: 16px !important;
+    line-height: 24px !important;
+    font-family: "Circe-Regular", Arial, sans-serif !important;
+    color: #333 !important;
+}
+
+#onboarding h3 {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+#onboarding h4 {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+#onboarding p {
+    margin-top: 18px !important;
+    margin-bottom: 18px !important;
+    font-size: 16px !important;
+    line-height: 24px !important;
+}
+
+.page--lock {
+    overflow: hidden;
+}
+
+#mainpage .page-layout {
+    min-width: 1200px;
+}
+
+#error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    max-width: 1180px;
+    min-height: 80vh;
+    margin: 0 auto;
+}
+
+#error h1 {
+    margin: 10px 0;
+
+    font-weight: 500;
+
+    letter-spacing: -.05px;
+}
+
+#error p {
+    width: 380px;
+    margin-bottom: 30px;
+
+    line-height: 20px;
+
+    text-align: center;
+
+    color: #333;
+}
+
+#error a.link {
+    color: #1386FF;
+}
+
+#error button {
+    position: relative;
+
+    display: inline-flex;
+    align-items: center;
+
+    padding: 10px 20px;
+
+    font: inherit;
+
+    cursor: pointer;
+
+    color: #333;
+    border: none;
+    border-radius: 10px;
+    background-color: #f2f2f2;
+    transition: background-color .2s ease;
+}
+
+#error button:hover {
+    background-color: #e5e5e5;
+}
+
+#error button:focus,
+#error button:active {
+    background-color: #ccc;
+}
+
+#error button:hover span {
+    z-index: 5;
+
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+}
+
+#error button svg {
+    margin-right: 10px;
+}
+
+#error span {
+    position: absolute;
+    top: 45px;
+    left: 50%;
+    z-index: -1;
+
+    display: inline-block;
+
+    padding: 10px;
+
+    opacity: 0;
+    border-radius: 10px;
+    background-color: #fff;
+    box-shadow: 0 11px 22px rgba(0, 0, 0, .11);
+    transition: transform 200ms cubic-bezier(.4, 0, .2, 1) 0s, opacity 200ms cubic-bezier(.4, 0, .2, 1) 0s;
+    transform: translateX(-50%) scale(.8);
+}
+
+#error .not-visible {
+    opacity: 0 !important;
+}
+
+.tox-notifications-container {
+    display: none !important;
+}

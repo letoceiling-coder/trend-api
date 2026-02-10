@@ -1,0 +1,36 @@
+{
+  "route": "/objects/map",
+  "uiType": "map",
+  "rootSelector": "#searchpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/search",
+      "method": "POST",
+      "purpose": "blocks for map pins/list",
+      "requiredParams": ["city", "lang", "auth_token", "filters", "limit", "offset"],
+      "responseEntities": ["Block"]
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/search/count",
+      "method": "POST",
+      "purpose": "count",
+      "requiredParams": ["city", "lang", "filters"],
+      "responseEntities": []
+    },
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/blocks/{id}/geo/buildings",
+      "method": "GET",
+      "purpose": "geo for map (per block)",
+      "requiredParams": ["city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Block"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".apartments-filter_search" },
+    { "name": "Toolbar", "selector": "button:has-text('Списком'), map toolbar buttons" },
+    { "name": "Sidebar", "selector": "scrollable list of pins (price labels)" },
+    { "name": "MapContainer", "selector": "Yandex map container (ymaps)" }
+  ],
+  "notes": "Map + scrollable sidebar with pin list (prices). Yandex map. Toolbar: Списком, Панорамы, Линейка, Маршруты, Парковки."
+}

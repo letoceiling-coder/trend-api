@@ -1,0 +1,29 @@
+{
+  "route": "/objects/plans",
+  "uiType": "plans",
+  "rootSelector": "#searchpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/apartments/search",
+      "method": "POST",
+      "purpose": "plan cards (apartments with plan images)",
+      "requiredParams": ["city", "lang", "auth_token", "filters", "limit", "offset", "sort"],
+      "responseEntities": ["Apartment"]
+    },
+    {
+      "endpoint": "https://apartment-api.trendagent.ru/v1/directories",
+      "method": "GET",
+      "purpose": "filter options",
+      "requiredParams": ["types", "city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Apartment"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".apartments-filter_search" },
+    { "name": "ViewSwitch", "selector": ".objects-header__view-group" },
+    { "name": "PlansGrid", "selector": ".plancard-item" },
+    { "name": "Card", "selector": ".plancard-item" }
+  ],
+  "notes": "Grid of plan cards (plancard-item); each card shows layout preview, price, CTA."
+}

@@ -1,0 +1,31 @@
+{
+  "route": "/objects/table",
+  "uiType": "table",
+  "rootSelector": "#searchpage .page-layout__content",
+  "dataSources": [
+    {
+      "endpoint": "https://api.trendagent.ru/v4_29/apartments/search",
+      "method": "POST",
+      "purpose": "table rows (apartments)",
+      "requiredParams": ["city", "lang", "auth_token", "limit", "offset", "sort", "filters"],
+      "responseEntities": ["Apartment"]
+    },
+    {
+      "endpoint": "https://apartment-api.trendagent.ru/v1/directories",
+      "method": "GET",
+      "purpose": "filter options",
+      "requiredParams": ["types", "city", "lang"],
+      "responseEntities": []
+    }
+  ],
+  "renderedEntities": ["Apartment"],
+  "renderedBlocks": [
+    { "name": "FiltersPanel", "selector": ".apartments-filter_search" },
+    { "name": "ViewSwitch", "selector": ".objects-header__view-group" },
+    { "name": "Table", "selector": "table.table" },
+    { "name": "TableHead", "selector": "thead.table-head" },
+    { "name": "TableRow", "selector": "tbody tr.table-row" },
+    { "name": "Pagination", "selector": ".objects-pagination" }
+  ],
+  "notes": "Table view of apartments: columns id/№, Район, etc. Same filters as list; view switch to list/plans/map."
+}
