@@ -55,7 +55,7 @@ class TrendagentAuthLoginCommandTest extends TestCase
             '--phone'    => '+79990000000',
             '--password' => 'secret',
         ])
-            ->expectsOutputToContain('SSO login blocked')
+            ->expectsOutputToContain('SSO login returned 403')
             ->expectsOutputToContain('trendagent:auth:save-refresh')
             ->assertExitCode(1);
 

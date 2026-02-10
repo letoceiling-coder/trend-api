@@ -51,7 +51,7 @@ class TrendagentAuthLogin extends Command
         }
 
         if (($result['needs_manual_token'] ?? false) === true) {
-            $this->error('SSO login blocked. Use: php artisan trendagent:auth:save-refresh <token>');
+            $this->error('SSO login returned 403 or no token. Save refresh_token manually:');
             $this->printSaveRefreshInstruction();
             return self::FAILURE;
         }
@@ -76,10 +76,10 @@ class TrendagentAuthLogin extends Command
     private function printSaveRefreshInstruction(): void
     {
         $this->newLine();
-        $this->line('  1. Log in at https://spb.trendagent.ru in your browser.');
-        $this->line('  2. DevTools → Application → Cookies → copy "refresh_token" value.');
-        $this->line('  3. Run: php artisan trendagent:auth:save-refresh <token>');
-        $this->line('     (or with --phone= if not using TRENDAGENT_DEFAULT_PHONE).');
+        $this->line('  1. Log in at https://spb.trendagent.ru (or https://sso.trend.tech) in your browser.');
+        $this->line('  2. DevTools → Application → Cookies → copy the "refresh_token" value.');
+        $this->line('  3. Run: php artisan trendagent:auth:save-refresh "<paste_token>"');
+        $this->line('     Optionally: --phone=... if not using TRENDAGENT_DEFAULT_PHONE.');
     }
 
     private function maskPhone(string $phone): string

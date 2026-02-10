@@ -173,18 +173,6 @@ class DeployCommand extends Command
         }
         $this->stepOk();
 
-        if ($hasChanges && ! $this->option('force')) {
-            $this->warn('You have uncommitted changes. Commit them manually or run deploy with --force to commit and push.');
-            $this->line('  git status:');
-            foreach (array_slice(explode("\n", $porcelain), 0, 15) as $line) {
-                $this->line('    ' . $line);
-            }
-            if (substr_count($porcelain, "\n") >= 15) {
-                $this->line('    ...');
-            }
-            return false;
-        }
-
         $message = $this->option('message') ?: 'deploy: ' . now()->format('Y-m-d H:i');
         $commands = [];
         if ($hasChanges) {
