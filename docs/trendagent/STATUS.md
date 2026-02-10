@@ -53,3 +53,49 @@ php artisan trendagent:auth:check
 Требуется `TRENDAGENT_DEFAULT_CITY_ID` в .env (для check используется при запросе к API).
 
 Если 403 при логине сохраняется: проверить `TRENDAGENT_APP_ID` / `TRENDAGENT_APP_ID_ALTERNATIVE`, при проблемах TLS временно `TRENDAGENT_SSO_VERIFY=false` (только для диагностики).
+
+---
+
+## Sync layer (stage 1) — Базовая синхронизация справочников
+
+Реализован минимальный sync layer для загрузки справочных данных из TrendAgent API в MySQL.
+
+### Архитектура
+
+- **`SyncRunner`** — управление жизненным циклом синхронизации (start/finishSuccess/finishFail). Маскирует токены в error_message и error_context.
+- **`TrendAgentSyncService`** — основная логика синхронизации с использованием `TrendHttpClient` (автоматическое добавление city/lang/auth_token).
+- **Таблицы БД**:
+  - `ta_sync_runs` — метаданные синхронизаций (scope, status, items_fetched/saved, error_message).
+  - `ta_payload_cache` — сырой JSON для отладки и воспроизводимости (scope, external_id, payload, fetched_at).
+  - `ta_unit_measurements` — единицы измерения (id, name, code, currency, measurement, raw).
+  - `ta_directories` — справочники apartment-api (type, city_id, lang, payload, unique constraint).
+
+### Команды
+
+| Команда | Описание |
+|---------|----------|
+| `php artisan trendagent:sync:unit-measurements [--city=...] [--lang=ru] [--no-raw]` | Синхронизация unit_measurements из core API (`/v4_29/unit_measurements`). По умолчанию использует `TRENDAGENT_DEFAULT_CITY_ID`. Сохраняет в `ta_unit_measurements` через upsert по `id`. С флагом `--no-raw` не сохраняет в `ta_payload_cache`. |
+| `php artisan trendagent:sync:directories [--types=rooms,deadlines,...] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация справочников из apartment-api (`/v1/directories`). По умолчанию загружает базовый набор: rooms, deadlines, deadline_keys, regions, subways, building_types, finishings, parking_types, locations. Сохраняет по каждому type отдельно в `ta_directories` (unique: type+city_id+lang). |
+
+### Пример использования
+
+```bash
+cd /var/www/trend-api/backend
+
+# Синхронизация unit_measurements
+php artisan trendagent:sync:unit-measurements
+# Output: items_fetched, items_saved, duration, run_id
+
+# Синхронизация конкретных типов справочников
+php artisan trendagent:sync:directories --types=rooms,deadlines,regions
+
+# Без сохранения raw payload
+php artisan trendagent:sync:unit-measurements --no-raw
+```
+
+### Важно
+
+- Команды sync требуют рабочей авторизации (`trendagent:auth:check` должен быть `AUTH OK`).
+- При ошибке sync run сохраняется со status='failed', error_message и error_context (токены замаскированы).
+- Все sync операции выполняются в транзакциях (upsert).
+- Сырой payload cache опционален (флаг `--no-raw`).
