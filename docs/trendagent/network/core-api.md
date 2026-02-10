@@ -10,18 +10,62 @@
   - `/objects/list`, `/objects/table`, `/objects/map`, `/objects/plans`
   - `/houses/list`, `/houses/table`, `/houses/plans`, `/houses/map`
   - `/villages/list`, `/villages/map`
-- **Endpoint**:
 
-```http
-POST https://api.trendagent.ru/v4_29/blocks/search
-```
+#### 1.1. Реальный контракт (проверено probe 2026-02-10)
 
-- **Headers**:
-  - `Authorization: Bearer {AUTH_TOKEN}`
-  - `Content-Type: application/json`
-- **Query params**:
+- **Endpoint**: `GET https://api.trendagent.ru/v4_29/blocks/search`
+- **HTTP метод**: **GET** (POST возвращает 404)
+- **Query params** (все обязательные):
   - `city={CITY_ID}`
   - `lang=ru`
+  - `auth_token={AUTH_TOKEN}`
+  - `show_type=list|map|plans` (default: list)
+  - `count=20` (items per page)
+  - `offset=0` (pagination)
+  - `sort=price` (sort field)
+  - `sort_order=asc|desc`
+
+- **Response structure**:
+
+```json
+{
+  "errors": null,
+  "data": {
+    "bookedApartmentsCount": 2568,
+    "apartmentsCount": 56231,
+    "viewApartmentsCount": 2434,
+    "blocksCount": 345,
+    "prelaunchesCount": 9,
+    "prelaunchesEoiCount": 0,
+    "results": [
+      {
+        "block_id": "65c8b45523bccfa820bfaf73",
+        "guid": "villa-marina",
+        "title": "Villa Marina",
+        "city": {...},
+        "min_price": 1,
+        "max_price": 1,
+        "location": {...},
+        "developer": {...}
+        /* полный объект блока */
+      }
+    ]
+  }
+}
+```
+
+**Ключевые находки**:
+- Блоки лежат в `data.results` (НЕ в `items` или `data.items`)
+- Поле идентификатора: `block_id` (строка 24 символа)
+- GET с query params работает, POST не поддерживается
+
+#### 1.2. Старая документация (несоответствует реальности)
+
+Ниже — оригинальная документация из Network логов (оставлена для сравнения). Реальный API использует GET с query params (см. 1.1).
+
+- **Headers**:
+  - `Authorization: Bearer {AUTH_TOKEN}` (в query как auth_token=...)
+  - `Content-Type: application/json`
 - **Body (обобщённо, по логам и UI)**:
 
 ```json
@@ -37,35 +81,11 @@ POST https://api.trendagent.ru/v4_29/blocks/search
     "subways": ["..."],
     "building_types": ["monolith"],
     "class": ["comfort"]
-    /* остальные поля соответствуют справочникам apartment-api (см. 04-filters-and-directories.md) */
   }
 }
 ```
 
-- **Response shape (логически, без полного дампа)**:
-
-```json
-{
-  "items": [
-    {
-      "id": "string",
-      "guid": "string",
-      "name": "string",
-      "city_id": "string",
-      "type": "string",
-      "location": { "lat": 0, "lng": 0, "address": "string" },
-      "min_price": 0,
-      "min_price_per_m2": 0,
-      "deadline": "string",
-      "developer": { "id": "string", "name": "string" }
-      /* доп. атрибуты блока, см. domain-model */
-    }
-  ],
-  "total": 123
-}
-```
-
-- **Пример curl**:
+- **Пример curl** (НЕ работает, POST возвращает 404):
 
 ```bash
 curl -X POST "https://api.trendagent.ru/v4_29/blocks/search?city={CITY_ID}&lang=ru" \

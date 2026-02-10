@@ -103,4 +103,26 @@ php artisan trendagent:sync:unit-measurements --no-raw
 - При ошибке sync run сохраняется со status='failed', error_message и error_context (токены замаскированы).
 - Все sync операции выполняются в транзакциях (upsert).
 - Сырой payload cache опционален (флаг `--no-raw`).
-- **Shape detector** (blocks): автоматически определяет структуру JSON-ответа, поддерживает различные форматы (`items`, `data.items`, `result.items`, `blocks`, `data.blocks`). При невозможности обнаружить массив блоков sync завершается с ошибкой и записью response keys в error_context.
+- **Shape detector** (blocks): автоматически определяет структуру JSON-ответа, поддерживает `data.results` (реальная структура TrendAgent API, проверено probe), `items`, `data.items`, `result.items`, `blocks`, `data.blocks`. При невозможности обнаружить массив блоков sync завершается с ошибкой и записью response keys в error_context.
+
+---
+
+## Probe tooling — Диагностика контрактов API
+
+Инструменты для "железобетонной" диагностики реальных контрактов внешних API без догадок.
+
+### Команды
+
+| Команда | Описание |
+|---------|----------|
+| `php artisan trendagent:probe:blocks-search [--show-type=list] [--count=20] [--offset=0] [--method=auto] [--save-raw] [--dump-keys] -vvv` | Диагностика `/v4_29/blocks/search`. Режим `--method=auto` пробует GET, затем POST (если GET не сработал). Сохраняет raw responses в `ta_payload_cache` (scope='probe_blocks_search') с метаданными (_meta: method, url, status, query, body, top_level_keys, items_found). Использует shape detector. Токены маскируются везде. Выводит: status, duration, top-level keys, items_found, items_count, preview (если нет items). |
+
+### Результаты probe (2026-02-10)
+
+**Endpoint**: `/v4_29/blocks/search`
+- **Метод**: GET (POST возвращает 404)
+- **Структура ответа**: `{errors: null, data: {results: [...], blocksCount, apartmentsCount, ...}}`
+- **Блоки**: в `data.results` (массив объектов с `block_id`, `guid`, `title`, `min_price`, `location`, `developer` и др.)
+- **Query params**: show_type, count, offset, sort, sort_order, city, lang, auth_token
+
+Детали зафиксированы в `docs/trendagent/network/core-api.md` (раздел 1.1).
