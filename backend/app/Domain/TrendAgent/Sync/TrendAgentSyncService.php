@@ -5,6 +5,7 @@ namespace App\Domain\TrendAgent\Sync;
 use App\Domain\TrendAgent\Sync\SyncRunner;
 use App\Integrations\TrendAgent\Http\TrendHttpClient;
 use App\Models\Domain\TrendAgent\TaBlock;
+use App\Models\Domain\TrendAgent\TaBlockDetail;
 use App\Models\Domain\TrendAgent\TaDirectory;
 use App\Models\Domain\TrendAgent\TaPayloadCache;
 use App\Models\Domain\TrendAgent\TaSyncRun;
@@ -421,5 +422,130 @@ class TrendAgentSyncService
         });
 
         return $saved;
+    }
+
+    /**
+     * Sync block detail information (unified, advantages, nearby_places, bank, geo_buildings, apartments_min_price)
+     */
+    public function syncBlockDetail(string $blockId, ?string $cityId = null, ?string $lang = null, bool $storeRawPayload = true): TaSyncRun
+    {
+        $cityId = $cityId ?? Config::get('trendagent.default_city_id');
+        $lang = $lang ?? Config::get('trendagent.default_lang', 'ru');
+
+        if (! $cityId) {
+            throw new RuntimeException('City ID is required for syncBlockDetail');
+        }
+
+        $run = $this->syncRunner->startRun('block_detail:' . $blockId, $cityId, $lang);
+
+        try {
+            $coreApi = config('trendagent.api.core', 'https://api.trendagent.ru');
+            $baseUrl = rtrim($coreApi, '/');
+
+            $endpoints = [
+                'unified' => [
+                    'path' => "/v4_29/blocks/{$blockId}/unified/",
+                    'query' => ['formating' => 'true', 'ch' => 'false'],
+                    'required' => true,
+                ],
+                'advantages' => [
+                    'path' => "/v4_29/blocks/{$blockId}/advantages/",
+                    'query' => [],
+                    'required' => false,
+                ],
+                'nearby_places' => [
+                    'path' => "/v4_29/blocks/{$blockId}/nearby_places/",
+                    'query' => [],
+                    'required' => false,
+                ],
+                'bank' => [
+                    'path' => "/v4_29/blocks/{$blockId}/bank/",
+                    'query' => [],
+                    'required' => false,
+                ],
+                'geo_buildings' => [
+                    'path' => "/v4_29/blocks/{$blockId}/geo/buildings/",
+                    'query' => [],
+                    'required' => false,
+                ],
+                'apartments_min_price' => [
+                    'path' => "/v4_29/blocks/{$blockId}/apartments/min-price/",
+                    'query' => [],
+                    'required' => false,
+                ],
+            ];
+
+            $payloads = [];
+            $fetchedCount = 0;
+
+            foreach ($endpoints as $key => $config) {
+                $url = $baseUrl . $config['path'];
+                $queryParams = array_merge($config['query'], ['city' => $cityId, 'lang' => $lang]);
+
+                try {
+                    $response = $this->http->get($url, $queryParams);
+
+                    if ($response->status() >= 200 && $response->status() < 300) {
+                        $payloads[$key . '_payload'] = $response->json();
+                        $fetchedCount++;
+
+                        if ($storeRawPayload) {
+                            $this->saveSinglePayloadToCache($blockId, $key, $response->json(), $url, $cityId, $lang);
+                        }
+                    } elseif ($config['required']) {
+                        throw new RuntimeException("Required endpoint {$key} failed with status {$response->status()}");
+                    }
+                } catch (Throwable $e) {
+                    if ($config['required']) {
+                        throw $e;
+                    }
+                    // Optional endpoint failed, continue
+                }
+            }
+
+            // Save to ta_block_details
+            DB::transaction(function () use ($blockId, $cityId, $lang, $payloads) {
+                TaBlockDetail::updateOrCreate(
+                    ['block_id' => $blockId, 'city_id' => $cityId, 'lang' => $lang],
+                    array_merge($payloads, ['fetched_at' => now()])
+                );
+            });
+
+            return $this->syncRunner->finishSuccess($run, $fetchedCount, 1);
+        } catch (Throwable $e) {
+            return $this->syncRunner->finishFail($run, $e, [
+                'block_id' => $blockId,
+                'city_id' => $cityId,
+                'lang' => $lang,
+            ]);
+        }
+    }
+
+    /**
+     * Save single payload to cache
+     */
+    protected function saveSinglePayloadToCache(string $blockId, string $key, mixed $data, string $url, string $cityId, string $lang): void
+    {
+        $externalId = $blockId . ':' . $key;
+
+        $payload = [
+            '_meta' => [
+                'endpoint' => $key,
+                'url' => $url,
+                'received_at' => now()->toIso8601String(),
+                'top_level_keys' => is_array($data) ? array_keys($data) : [],
+            ],
+            'response' => $data,
+        ];
+
+        TaPayloadCache::create([
+            'provider' => 'trendagent',
+            'scope' => 'block_detail',
+            'external_id' => $externalId,
+            'city_id' => $cityId,
+            'lang' => $lang,
+            'payload' => json_encode($payload),
+            'fetched_at' => now(),
+        ]);
     }
 }

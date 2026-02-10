@@ -176,7 +176,7 @@ POST https://api.trendagent.ru/v4_29/apartments/search
 - **UI‑страницы**:
   - `/object/{slug}` (карточка объекта)
   - любые detail‑вкладки, завязанные на объект.
-- **Основные endpoints (по логам)**:
+- **Основные endpoints (проверено probe 2026-02-10)**:
 
 ```http
 GET https://api.trendagent.ru/v4_29/blocks/{BLOCK_ID}/unified
@@ -188,16 +188,23 @@ GET https://api.trendagent.ru/v4_29/blocks/{BLOCK_ID}/geo/buildings
 ```
 
 - **Общие query params**:
-  - `city={CITY_ID}`
-  - `lang=ru`
+  - `city={CITY_ID}` (обязательно)
+  - `lang=ru` (обязательно)
+  - `auth_token={AUTH_TOKEN}` (автоматически добавляется TrendHttpClient)
 
-- **Response (высокоуровнево)**:
-  - `/unified` — агрегированный объект (данные блока, описания, картинки, ключевые параметры).
-  - `/advantages` — список преимуществ (`[{ id, title, description }]`).
-  - `/nearby_places` — объекты инфраструктуры рядом.
-  - `/bank` — сведения о банках/ипотеке.
-  - `/apartments/min-price` — минимальная цена квартиры в объекте.
-  - `/geo/buildings` — геометрия корпусов/секций для карты.
+- **Дополнительные параметры для `/unified`**:
+  - `formating=true` (рекомендуется для форматированных данных)
+  - `ch=false` (отключить кеширование)
+
+- **Response (детали)**:
+  - `/unified` (required) — агрегированный объект (данные блока, описания, картинки, ключевые параметры, полная детальная информация).
+  - `/advantages` (optional) — список преимуществ объекта.
+  - `/nearby_places` (optional) — объекты инфраструктуры рядом (школы, магазины, парки).
+  - `/bank` (optional) — сведения о банках/ипотеке для объекта.
+  - `/apartments/min-price` (optional) — минимальные цены на квартиры разных типов в объекте.
+  - `/geo/buildings` (optional) — геометрия корпусов/секций для карты.
+
+**Статус**: Unified endpoint обязательный (required) для детальной карточки. Остальные опциональные — их ошибки не прерывают синхронизацию.
 
 ---
 

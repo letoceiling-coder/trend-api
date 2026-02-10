@@ -77,6 +77,7 @@ php artisan trendagent:auth:check
 | `php artisan trendagent:sync:unit-measurements [--city=...] [--lang=ru] [--no-raw]` | Синхронизация unit_measurements из core API (`/v4_29/unit_measurements`). По умолчанию использует `TRENDAGENT_DEFAULT_CITY_ID`. Сохраняет в `ta_unit_measurements` через upsert по `id`. С флагом `--no-raw` не сохраняет в `ta_payload_cache`. |
 | `php artisan trendagent:sync:directories [--types=rooms,deadlines,...] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация справочников из apartment-api (`/v1/directories`). По умолчанию загружает базовый набор: rooms, deadlines, deadline_keys, regions, subways, building_types, finishings, parking_types, locations. Сохраняет по каждому type отдельно в `ta_directories` (unique: type+city_id+lang). |
 | `php artisan trendagent:sync:blocks [--show-type=list] [--count=20] [--max-pages=50] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация blocks из core API (`/v4_29/blocks/search`). Параметры: `--show-type` (list/map/plans), `--count` (items per page), `--max-pages` (защита от бесконечности). Использует **shape detector** для определения структуры ответа (поддерживает `items`, `data.items`, `result.items` и др.). Сохраняет в `ta_blocks` через upsert по `block_id`. Pagination: offset увеличивается автоматически до достижения конца или `--max-pages`. |
+| `php artisan trendagent:sync:block-detail {block_id} [--city=...] [--lang=ru] [--no-raw]` | Синхронизация детальной информации об объекте (6 endpoints) в `ta_block_details`: unified (required), advantages, nearby_places, bank, geo_buildings, apartments_min_price (optional). Если unified endpoint не отвечает — sync run помечается как failed. Остальные endpoints опциональны: их ошибки не прерывают синхронизацию. Upsert по (block_id, city_id, lang). Raw payload каждого endpoint сохраняется отдельно в `ta_payload_cache` (scope='block_detail'). |
 
 ### Пример использования
 
@@ -125,4 +126,10 @@ php artisan trendagent:sync:unit-measurements --no-raw
 - **Блоки**: в `data.results` (массив объектов с `block_id`, `guid`, `title`, `min_price`, `location`, `developer` и др.)
 - **Query params**: show_type, count, offset, sort, sort_order, city, lang, auth_token
 
-Детали зафиксированы в `docs/trendagent/network/core-api.md` (раздел 1.1).
+**Endpoints**: `/v4_29/blocks/{block_id}/*` (детали)
+- **Метод**: GET
+- **Обязательный endpoint**: `/unified/` (с параметрами formating=true, ch=false)
+- **Опциональные endpoints**: `/advantages/`, `/nearby_places/`, `/bank/`, `/geo/buildings/`, `/apartments/min-price/`
+- **Query params**: city, lang, auth_token (для всех)
+
+Детали зафиксированы в `docs/trendagent/network/core-api.md` (разделы 1.1 и 4).
