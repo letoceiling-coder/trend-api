@@ -50,7 +50,38 @@ class TrendHttpClient
     }
 
     /**
-     * Внутренний helper для запроса с получением auth_token.
+     * Выполнить POST-запрос с JSON body к TrendAgent API с автоматическим добавлением
+     * city/lang/auth_token в query и retry при 401/403.
+     *
+     * @param  string  $url   Полный URL
+     * @param  array<string, mixed>  $query  Query параметры (city/lang добавятся автоматически)
+     * @param  array<string, mixed>  $body   JSON body
+     */
+    public function postJson(string $url, array $query = [], array $body = []): Response
+    {
+        $cityId = (string) ($query['city'] ?? Config::get('trendagent.default_city_id', ''));
+        $lang = (string) ($query['lang'] ?? Config::get('trendagent.default_lang', 'ru'));
+
+        if ($cityId === '') {
+            throw new \InvalidArgumentException('TrendAgent city id is not configured.');
+        }
+
+        try {
+            $response = $this->performPostJson($url, $query, $body, $cityId, $lang);
+
+            if ($response->status() === 401 || $response->status() === 403) {
+                $this->auth->invalidate($cityId, $lang);
+                $response = $this->performPostJson($url, $query, $body, $cityId, $lang);
+            }
+
+            return $response;
+        } catch (TrendAgentNotAuthenticatedException $e) {
+            throw $e;
+        }
+    }
+
+    /**
+     * Внутренний helper для GET запроса с получением auth_token.
      *
      * @param  array<string, mixed>  $query
      */
@@ -65,6 +96,25 @@ class TrendHttpClient
         ]);
 
         return Http::acceptJson()->get($url, $finalQuery);
+    }
+
+    /**
+     * Внутренний helper для POST JSON запроса с получением auth_token.
+     *
+     * @param  array<string, mixed>  $query
+     * @param  array<string, mixed>  $body
+     */
+    private function performPostJson(string $url, array $query, array $body, string $cityId, string $lang): Response
+    {
+        $authToken = $this->auth->getAuthToken($cityId, $lang);
+
+        $finalQuery = array_merge($query, [
+            'city'       => $cityId,
+            'lang'       => $lang,
+            'auth_token' => $authToken,
+        ]);
+
+        return Http::acceptJson()->post($url . '?' . http_build_query($finalQuery), $body);
     }
 }
 
