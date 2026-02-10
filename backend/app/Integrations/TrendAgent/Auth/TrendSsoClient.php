@@ -295,7 +295,7 @@ class TrendSsoClient
 
         $result = $this->doGetAuthToken($refreshToken, $cityId, $lang, $chosenAppId);
 
-        if ($result['retry'] === true && $appIdJwt !== null && $appIdJwt !== $chosenAppId) {
+        if (($result['retry'] ?? false) === true && $appIdJwt !== null && $appIdJwt !== $chosenAppId) {
             $result = $this->doGetAuthToken($refreshToken, $cityId, $lang, $appIdJwt);
         }
 
