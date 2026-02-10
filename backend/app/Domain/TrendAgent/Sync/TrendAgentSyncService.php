@@ -4,6 +4,7 @@ namespace App\Domain\TrendAgent\Sync;
 
 use App\Domain\TrendAgent\Sync\SyncRunner;
 use App\Integrations\TrendAgent\Http\TrendHttpClient;
+use App\Models\Domain\TrendAgent\TaApartment;
 use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaBlockDetail;
 use App\Models\Domain\TrendAgent\TaDirectory;
@@ -339,6 +340,58 @@ class TrendAgentSyncService
     }
 
     /**
+     * Detect array of apartments in response. Shape detector for apartments/search.
+     *
+     * @return array|null Array of apartment items or null if not found
+     */
+    public function detectApartmentsArray(mixed $data): ?array
+    {
+        if (! is_array($data)) {
+            return null;
+        }
+
+        if ($this->looksLikeApartmentsArray($data)) {
+            return $data;
+        }
+
+        $pathsToCheck = [
+            ['data', 'results'],
+            ['data', 'items'],
+            ['items'],
+            ['result', 'items'],
+            ['results'],
+            ['data', 'apartments'],
+            ['apartments'],
+        ];
+
+        foreach ($pathsToCheck as $path) {
+            $value = $this->getNestedValue($data, $path);
+            if (is_array($value) && $this->looksLikeApartmentsArray($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if array looks like an array of apartments
+     */
+    protected function looksLikeApartmentsArray(array $arr): bool
+    {
+        if (empty($arr)) {
+            return false;
+        }
+
+        $first = reset($arr);
+        if (! is_array($first)) {
+            return false;
+        }
+
+        return isset($first['apartment_id']) || isset($first['_id']) || isset($first['id']);
+    }
+
+    /**
      * Get nested value from array by path
      */
     protected function getNestedValue(array $data, array $path): mixed
@@ -415,6 +468,182 @@ class TrendAgentSyncService
                         'raw' => $block,
                         'fetched_at' => now(),
                     ]
+                );
+
+                $saved++;
+            }
+        });
+
+        return $saved;
+    }
+
+    /**
+     * Sync apartments from apartments/search endpoint with pagination
+     *
+     * @param  array{count?: int, offset?: int, sort?: string, sort_order?: string, max_pages?: int}  $params
+     * @return array{run: TaSyncRun, total_pages: int}
+     */
+    public function syncApartmentsSearch(array $params = [], ?string $cityId = null, ?string $lang = null, bool $storeRawPayload = true): array
+    {
+        $cityId = $cityId ?? Config::get('trendagent.default_city_id');
+        $lang = $lang ?? Config::get('trendagent.default_lang', 'ru');
+
+        if (! $cityId) {
+            throw new RuntimeException('City ID is required for syncApartmentsSearch');
+        }
+
+        $coreApi = config('trendagent.api.core', 'https://api.trendagent.ru');
+        $url = rtrim($coreApi, '/') . '/v4_29/apartments/search/';
+
+        $defaultParams = [
+            'count' => 50,
+            'offset' => 0,
+            'sort' => 'price',
+            'sort_order' => 'asc',
+            'max_pages' => 20,
+        ];
+
+        $queryParams = array_merge($defaultParams, $params, [
+            'city' => $cityId,
+            'lang' => $lang,
+        ]);
+
+        $run = $this->syncRunner->startRun('apartments_search', $cityId, $lang);
+
+        try {
+            $count = (int) $queryParams['count'];
+            $maxPages = (int) ($queryParams['max_pages'] ?? 20);
+            $currentOffset = (int) $queryParams['offset'];
+            $totalFetched = 0;
+            $totalSaved = 0;
+            $pagesProcessed = 0;
+
+            while ($pagesProcessed < $maxPages) {
+                $queryParams['offset'] = $currentOffset;
+
+                $response = $this->http->get($url, $queryParams);
+                $data = $response->json();
+
+                $apartments = $this->detectApartmentsArray($data);
+
+                if ($apartments === null) {
+                    throw new RuntimeException(
+                        'Unable to detect apartments array in response. Response keys: ' . implode(', ', array_keys($data ?? []))
+                    );
+                }
+
+                $pageFetched = count($apartments);
+                $totalFetched += $pageFetched;
+
+                if ($pageFetched > 0) {
+                    $pageSaved = $this->saveApartments($apartments, $cityId, $lang, $storeRawPayload);
+                    $totalSaved += $pageSaved;
+                }
+
+                if ($storeRawPayload) {
+                    $externalId = sprintf(
+                        'offset:%d;count:%d',
+                        $currentOffset,
+                        $count
+                    );
+                    TaPayloadCache::create([
+                        'provider' => 'trendagent',
+                        'scope' => 'apartments_search_page',
+                        'external_id' => $externalId,
+                        'city_id' => $cityId,
+                        'lang' => $lang,
+                        'payload' => json_encode($data),
+                        'fetched_at' => now(),
+                    ]);
+                }
+
+                $pagesProcessed++;
+
+                if ($pageFetched < $count) {
+                    break;
+                }
+
+                $currentOffset += $count;
+            }
+
+            $this->syncRunner->finishSuccess($run, $totalFetched, $totalSaved);
+
+            return [
+                'run' => $run->fresh(),
+                'total_pages' => $pagesProcessed,
+            ];
+        } catch (Throwable $e) {
+            $this->syncRunner->finishFail($run, $e, [
+                'endpoint' => '/v4_29/apartments/search',
+                'city_id' => $cityId,
+                'lang' => $lang,
+                'params' => $params,
+            ]);
+
+            return [
+                'run' => $run->fresh(),
+                'total_pages' => 0,
+            ];
+        }
+    }
+
+    /**
+     * Save apartments to database with upsert by (apartment_id, city_id)
+     *
+     * @return int Number of apartments saved
+     */
+    protected function saveApartments(array $apartments, string $cityId, string $lang, bool $storeRaw = true): int
+    {
+        $saved = 0;
+
+        DB::transaction(function () use ($apartments, $cityId, $lang, $storeRaw, &$saved) {
+            foreach ($apartments as $item) {
+                if (! is_array($item)) {
+                    continue;
+                }
+
+                $apartmentId = $item['apartment_id'] ?? $item['_id'] ?? $item['id'] ?? null;
+                if (! $apartmentId) {
+                    continue;
+                }
+
+                $blockId = $item['block_id'] ?? $item['block'] ?? null;
+                if (is_array($blockId)) {
+                    $blockId = $blockId['_id'] ?? $blockId['id'] ?? null;
+                }
+                $blockId = $blockId ? (string) $blockId : null;
+
+                $title = $item['title'] ?? $item['name'] ?? $item['number'] ?? null;
+                $guid = $item['guid'] ?? $item['slug'] ?? null;
+                $rooms = isset($item['rooms']) ? (int) $item['rooms'] : null;
+                $areaTotal = isset($item['area_total']) ? $item['area_total'] : ($item['area'] ?? null);
+                $floor = isset($item['floor']) ? (int) $item['floor'] : null;
+                $price = isset($item['price']) ? (int) $item['price'] : (isset($item['price_from']) ? (int) $item['price_from'] : null);
+                $status = $item['status'] ?? null;
+
+                $attrs = [
+                    'block_id' => $blockId,
+                    'guid' => $guid,
+                    'title' => $title,
+                    'rooms' => $rooms,
+                    'area_total' => $areaTotal,
+                    'floor' => $floor,
+                    'price' => $price,
+                    'status' => $status,
+                    'lang' => $lang,
+                    'fetched_at' => now(),
+                ];
+
+                if ($storeRaw) {
+                    $attrs['raw'] = $item;
+                }
+
+                TaApartment::updateOrCreate(
+                    [
+                        'apartment_id' => (string) $apartmentId,
+                        'city_id' => $cityId,
+                    ],
+                    $attrs
                 );
 
                 $saved++;

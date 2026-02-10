@@ -115,19 +115,36 @@ POST https://api.trendagent.ru/v4_29/blocks/search/count
 
 ---
 
-### 3. Поиск квартир
+### 3. Поиск квартир (apartments/search)
 
 - **UI‑страницы**:
   - `/objects/plans` (общий рынок)
   - вкладки планировок на `/object/{slug}`
-- **Endpoint**:
 
-```http
-POST https://api.trendagent.ru/v4_29/apartments/search
-  ?city={CITY_ID}
-  &lang=ru
-```
+#### 3.1. Реальный контракт (проверяется probe)
 
+Диагностика: `php artisan trendagent:probe:apartments-search --count=50 --offset=0 --save-raw -vvv`
+
+- **Endpoint**: `GET` или `POST` (определяется probe)  
+  `https://api.trendagent.ru/v4_29/apartments/search/`
+- **Query params** (при GET): `city`, `lang`, `auth_token`, `count`, `offset`, `sort`, `sort_order`
+- **Body** (при POST): `count`, `offset`, `sort`, `sort_order` (остальное по результатам probe)
+
+**Shape detector** (где может лежать массив квартир):
+- `data.results`
+- `data.items`
+- `items`
+- `result.items`
+- `data.apartments`
+- `apartments`
+
+Элемент квартиры распознаётся по наличию `apartment_id`, `_id` или `id`. Поля маппинга: `block_id`, `title`/`name`/`number`, `rooms`, `area_total`/`area`, `floor`, `price`/`price_from`, `status`, `guid`/`slug`.
+
+После запуска probe актуальные метод, параметры и структура ответа фиксируются в этом разделе и в STATUS.md.
+
+#### 3.2. Документация по логам (до проверки probe)
+
+- **Endpoint**: `POST https://api.trendagent.ru/v4_29/apartments/search?city={CITY_ID}&lang=ru`
 - **Body (обобщённо)**:
 
 ```json
@@ -135,7 +152,7 @@ POST https://api.trendagent.ru/v4_29/apartments/search
   "limit": 50,
   "offset": 0,
   "filters": {
-    "block_ids": ["..."],      // при поиске по конкретному объекту
+    "block_ids": ["..."],
     "rooms": [1, 2],
     "area_total": { "min": 30, "max": 60 },
     "price": { "min": 5000000, "max": 9000000 },
@@ -146,28 +163,7 @@ POST https://api.trendagent.ru/v4_29/apartments/search
 }
 ```
 
-- **Response shape (логически)**:
-
-```json
-{
-  "items": [
-    {
-      "id": "string",
-      "block_id": "string",
-      "number": "string",
-      "rooms": 1,
-      "area_total": 0,
-      "area_kitchen": 0,
-      "price": 0,
-      "floor": 0,
-      "floors_total": 0,
-      "status": "free"
-      /* см. сущность Apartment в domain-model */
-    }
-  ],
-  "total": 123
-}
-```
+- **Response shape (логически)**: массив квартир в `items` или в другой вложенности (см. shape detector выше).
 
 ---
 
