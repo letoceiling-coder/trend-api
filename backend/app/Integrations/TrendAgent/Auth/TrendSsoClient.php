@@ -55,7 +55,28 @@ class TrendSsoClient
             ]);
 
         if (! $response->ok()) {
-            throw new RuntimeException('TrendAgent SSO login failed.');
+            $status = $response->status();
+            $body = $response->json();
+            $hint = '';
+            if (is_array($body)) {
+                $msg = $body['message'] ?? $body['error'] ?? $body['detail'] ?? $body['msg'] ?? null;
+                if (is_string($msg) && $msg !== '') {
+                    $hint = ' — ' . $msg;
+                }
+            }
+            if ($hint === '') {
+                $raw = $response->body();
+                if (is_string($raw) && $raw !== '') {
+                    $preview = preg_replace('/"(?:refresh_token|auth_token|token)"\s*:\s*"[^"]*"/i', '"***"', $raw);
+                    $preview = strlen($preview) > 300 ? substr($preview, 0, 300) . '...' : $preview;
+                    $hint = ' — Response: ' . $preview;
+                }
+            }
+            $msg = 'TrendAgent SSO login failed (HTTP ' . $status . ').' . $hint;
+            if ($status === 403) {
+                $msg .= ' SSO blocks server requests. Log in at spb.trendagent.ru, copy refresh_token from DevTools → Application → Cookies, then run this command again and paste the token when asked.';
+            }
+            throw new RuntimeException($msg);
         }
 
         $data = $response->json() ?? [];

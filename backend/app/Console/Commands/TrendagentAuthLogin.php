@@ -38,16 +38,23 @@ class TrendagentAuthLogin extends Command
 
         $this->info(sprintf('Logging into TrendAgent SSO as %s...', $phone));
 
-        $result = $sso->login($phone, $password, $lang);
+        $refreshToken = null;
+        try {
+            $result = $sso->login($phone, $password, $lang);
+            $refreshToken = $result['refresh_token'] ?? null;
+            if (($result['needs_manual_token'] ?? false) === true) {
+                $refreshToken = null;
+            }
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+            $this->newLine();
+            $this->warn('You can still save a refresh_token from your browser:');
+        }
 
-        $refreshToken = $result['refresh_token'] ?? null;
-
-        if (($result['needs_manual_token'] ?? false) === true || empty($refreshToken)) {
-            $this->warn('SSO login completed, but refresh_token is not available automatically.');
-            $this->line('To continue, please obtain the refresh_token manually from your browser session:');
-            $this->line('  - Open TrendAgent in your browser and log in with the same account.');
-            $this->line('  - Open DevTools → Application → Cookies → find "refresh_token".');
-            $this->line('  - Or take it from Network → SSO response Set-Cookie header.');
+        if (empty($refreshToken)) {
+            $this->line('  - Log in at https://spb.trendagent.ru with this account.');
+            $this->line('  - DevTools → Application → Cookies → copy "refresh_token" value.');
+            $this->line('  - Or Network → SSO response → Set-Cookie header.');
 
             $manual = $this->secret('Paste the refresh_token here (input will be hidden):');
 
