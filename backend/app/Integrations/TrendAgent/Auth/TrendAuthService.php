@@ -93,10 +93,16 @@ class TrendAuthService
     /**
      * Получить auth_token на основе текущего refresh_token.
      *
+     * @throws \InvalidArgumentException если cityId пустой
      * @throws TrendAgentNotAuthenticatedException
      */
     public function getAuthToken(string $cityId, string $lang = 'ru'): string
     {
+        $cityId = trim($cityId);
+        if ($cityId === '') {
+            throw new \InvalidArgumentException('TrendAgent city_id is required for getAuthToken (set TRENDAGENT_DEFAULT_CITY_ID or pass non-empty cityId).');
+        }
+
         $cacheKey = $this->makeCacheKey($cityId, $lang);
 
         return Cache::remember($cacheKey, 240, function () use ($cityId, $lang) {
@@ -105,13 +111,16 @@ class TrendAuthService
             try {
                 $token = $this->sso->getAuthToken($session->refresh_token, $cityId, $lang);
             } catch (RuntimeException $e) {
-                // Считаем, что refresh_token протух.
-                $session->refresh_token = null;
-                $session->is_active = false;
-                $session->invalidated_at = now();
-                $session->save();
+                $code = (int) $e->getCode();
+                // Обнуляем refresh_token только при явном 401/403 от SSO (rejected).
+                if ($code === 401 || $code === 403) {
+                    $session->refresh_token = null;
+                    $session->is_active = false;
+                    $session->invalidated_at = now();
+                    $session->save();
+                }
 
-                throw new TrendAgentNotAuthenticatedException('TrendAgent SSO session is invalid.', previous: $e);
+                throw new TrendAgentNotAuthenticatedException($e->getMessage(), 0, $e);
             }
 
             $session->last_auth_token_at = now();
@@ -119,6 +128,29 @@ class TrendAuthService
 
             return $token;
         });
+    }
+
+    /**
+     * Получить auth_token для конкретной сессии (без кеша). Для проверки/диагностики.
+     *
+     * @throws \InvalidArgumentException если city_id пустой
+     * @throws TrendAgentNotAuthenticatedException
+     */
+    public function getAuthTokenForSession(TaSsoSession $session): string
+    {
+        if (! $session->refresh_token || $session->refresh_token === '') {
+            throw new TrendAgentNotAuthenticatedException('Session has no refresh_token.');
+        }
+
+        $cityId = $session->city_id ?? \Illuminate\Support\Facades\Config::get('trendagent.default_city_id');
+        $cityId = trim((string) $cityId);
+        if ($cityId === '') {
+            throw new \InvalidArgumentException('city_id required (session has none, set TRENDAGENT_DEFAULT_CITY_ID).');
+        }
+
+        $lang = (string) \Illuminate\Support\Facades\Config::get('trendagent.default_lang', 'ru');
+
+        return $this->sso->getAuthToken($session->refresh_token, $cityId, $lang);
     }
 
     /**

@@ -247,28 +247,62 @@ class TrendSsoClient
     }
 
     /**
-     * Получить краткоживущий auth_token по refresh_token (Laravel Http, без CookieJar).
+     * Получить краткоживущий auth_token по refresh_token. Guzzle + браузерные заголовки (как в AL).
+     * 200: обязан auth_token в JSON. 401/403: RuntimeException с code=status. Остальное: RuntimeException с preview.
      */
     public function getAuthToken(string $refreshToken, string $cityId, string $lang = 'ru'): string
     {
-        $response = \Illuminate\Support\Facades\Http::acceptJson()
-            ->withToken($refreshToken)
-            ->get($this->ssoBase . '/v1/auth_token/', [
-                'city' => $cityId,
-                'lang' => $lang,
-            ]);
+        $url = $this->ssoBase . '/v1/auth_token/?' . http_build_query(['city' => $cityId, 'lang' => $lang]);
+        $origin = (string) Config::get('trendagent.auth_token_origin', 'https://spb.trendagent.ru');
+        $jar = new CookieJar;
+        $client = $this->createGuzzleClient($jar);
 
-        if ($response->unauthorized() || $response->forbidden()) {
-            throw new RuntimeException('TrendAgent refresh token is invalid or expired.');
+        $headers = [
+            'Authorization' => 'Bearer ' . $refreshToken,
+            'Accept' => 'application/json, text/plain, */*',
+            'Accept-Language' => 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+            'User-Agent' => (string) Config::get('trendagent.user_agent'),
+            'Origin' => $origin,
+            'Referer' => rtrim($origin, '/') . '/',
+            'Sec-Fetch-Mode' => 'cors',
+            'Sec-Fetch-Site' => 'cross-site',
+            'Sec-Ch-Ua' => '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
+            'Sec-Ch-Ua-Mobile' => '?0',
+            'Sec-Ch-Ua-Platform' => '"Windows"',
+        ];
+
+        try {
+            $response = $client->get($url, ['headers' => $headers]);
+        } catch (GuzzleException $e) {
+            $hint = $e->getMessage();
+            if (str_contains($hint, 'timed out') || str_contains($hint, 'timeout')) {
+                $hint = 'timeout';
+            } elseif (str_contains($hint, 'resolve') || str_contains($hint, 'getaddrinfo')) {
+                $hint = 'DNS';
+            } elseif (str_contains($hint, 'SSL') || str_contains($hint, 'certificate') || str_contains($hint, 'TLS')) {
+                $hint = 'TLS';
+            } else {
+                $hint = 'connection';
+            }
+            throw new RuntimeException('auth_token request failed: ' . $hint . ' — ' . $url, 0, $e);
         }
 
-        if (! $response->ok()) {
-            throw new RuntimeException('Failed to obtain auth_token from TrendAgent SSO.');
+        $status = $response->getStatusCode();
+        $body = (string) $response->getBody();
+        $data = $this->decodeJson($body);
+
+        if ($status === 401 || $status === 403) {
+            $preview = $this->sanitizePreview($body);
+            throw new RuntimeException('refresh token rejected — ' . substr($preview, 0, 500), $status);
         }
 
-        $data = $response->json();
+        if ($status !== 200) {
+            $preview = $this->sanitizePreview($body);
+            throw new RuntimeException('auth_token request failed: HTTP ' . $status . ' — ' . substr($preview, 0, 300), $status);
+        }
+
         if (! is_array($data) || ! isset($data['auth_token']) || ! is_string($data['auth_token'])) {
-            throw new RuntimeException('Invalid auth_token response structure.');
+            throw new RuntimeException('auth_token missing in response');
         }
 
         return $data['auth_token'];

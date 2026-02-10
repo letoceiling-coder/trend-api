@@ -42,7 +42,7 @@ class TrendAuthServiceTest extends TestCase
         $this->assertSame($first, $second);
     }
 
-    public function test_session_is_invalidated_when_refresh_token_is_bad(): void
+    public function test_session_is_invalidated_when_sso_returns_403(): void
     {
         Cache::flush();
 
@@ -57,7 +57,7 @@ class TrendAuthServiceTest extends TestCase
         $sso = Mockery::mock(TrendSsoClient::class);
         $sso->shouldReceive('getAuthToken')
             ->once()
-            ->andThrow(new \RuntimeException('invalid refresh token'));
+            ->andThrow(new \RuntimeException('refresh token rejected', 403));
 
         $service = new TrendAuthService($sso);
 
@@ -69,6 +69,48 @@ class TrendAuthServiceTest extends TestCase
             $session->refresh();
             $this->assertNull($session->refresh_token);
         }
+    }
+
+    public function test_session_refresh_token_not_cleared_on_timeout(): void
+    {
+        Cache::flush();
+
+        $session = TaSsoSession::create([
+            'provider'         => 'trendagent',
+            'phone'            => '+79990000000',
+            'city_id'          => null,
+            'refresh_token'    => 'refresh-123',
+            'last_login_at'    => now(),
+        ]);
+
+        $sso = Mockery::mock(TrendSsoClient::class);
+        $sso->shouldReceive('getAuthToken')
+            ->once()
+            ->andThrow(new \RuntimeException('auth_token request failed: timeout', 0));
+
+        $service = new TrendAuthService($sso);
+
+        $this->expectException(TrendAgentNotAuthenticatedException::class);
+
+        try {
+            $service->getAuthToken('city-1', 'ru');
+        } finally {
+            $session->refresh();
+            $this->assertSame('refresh-123', $session->refresh_token);
+        }
+    }
+
+    public function test_get_auth_token_throws_when_city_id_empty(): void
+    {
+        $sso = Mockery::mock(TrendSsoClient::class);
+        $sso->shouldReceive('getAuthToken')->never();
+
+        $service = new TrendAuthService($sso);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('city_id');
+
+        $service->getAuthToken('', 'ru');
     }
 }
 
