@@ -38,6 +38,7 @@
   - логин на `sso.trend.tech` по телефону и паролю;
   - сессионный `refresh_token` хранится в HttpOnly cookie (недоступен JS);
   - короткоживущий `auth_token` (`~5 минут`) используется для доступа к API.
+- **Серверный логин** (`php artisan trendagent:auth:login`): команда выводит «successful» **только когда refresh_token реально сохранён в БД** (ta_sso_sessions). Иначе — «SSO login NOT saved» и инструкция по ручному сохранению токена.
 - **Продление токена**:
   - выполняется фронтендом через:
     - `GET https://sso-api.trend.tech/v1/auth_token/?city={CITY_ID}&lang=ru`

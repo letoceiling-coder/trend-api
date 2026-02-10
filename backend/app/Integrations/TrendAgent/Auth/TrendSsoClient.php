@@ -68,15 +68,13 @@ class TrendSsoClient
     }
 
     /**
-     * Выполнить логин в SSO (браузерный флоу: GET login с редиректами → POST api) и вернуть refresh_token или needs_manual_token.
+     * Login to SSO. Strict contract: either success with refresh_token or ok=false / exception.
      *
-     * @return array{
-     *     refresh_token: string|null,
-     *     raw: array<string,mixed>,
-     *     needs_manual_token: bool,
-     *     response_status?: int,
-     *     response_body_preview?: string
-     * }
+     * Success: ['ok'=>true, 'refresh_token'=>string, 'app_id'=>string, 'status'=>int]
+     * Blocked/manual: ['ok'=>false, 'needs_manual_token'=>true, 'status'=>int, 'reason'=>string]
+     * Error: throws RuntimeException (no tokens in message).
+     *
+     * @return array{ok: bool, refresh_token?: string, app_id?: string, status: int, needs_manual_token?: bool, reason?: string}
      */
     public function login(string $phone, string $password, string $lang = 'ru'): array
     {
@@ -91,6 +89,7 @@ class TrendSsoClient
 
         $result = $this->doPostLogin($client, $jar, $appId, $phoneFormatted, $password, $lang);
         if ($result !== null) {
+            $result['app_id'] = $appId;
             return $result;
         }
 
@@ -101,23 +100,23 @@ class TrendSsoClient
             $this->resolveAppId($client2);
             $result = $this->doPostLogin($client2, $jar2, $altAppId, $phoneFormatted, $password, $lang);
             if ($result !== null) {
+                $result['app_id'] = $altAppId;
                 return $result;
             }
         }
 
         return [
-            'refresh_token' => null,
-            'raw' => [],
+            'ok' => false,
             'needs_manual_token' => true,
-            'response_status' => 403,
-            'response_body_preview' => '',
+            'status' => 403,
+            'reason' => 'forbidden_no_token',
         ];
     }
 
     /**
-     * POST login; returns result array or null if 403 and no token (caller may retry with alternative app_id).
+     * POST login. Returns strict result or null (403, no token → caller retries with alternative app_id).
      *
-     * @return array{refresh_token: string|null, raw: array, needs_manual_token: bool, response_status?: int, response_body_preview?: string}|null
+     * @return array{ok: bool, refresh_token?: string, status: int, needs_manual_token?: bool, reason?: string}|null
      */
     protected function doPostLogin(Client $client, CookieJar $jar, string $appId, string $phoneFormatted, string $password, string $lang): ?array
     {
@@ -144,42 +143,63 @@ class TrendSsoClient
 
         $token = $this->extractTokenFromResponse($response, $body, $data, $jar);
 
-        if ($status >= 200 && $status < 300) {
-            return [
-                'refresh_token' => $token,
-                'raw' => is_array($data) ? $this->sanitizeRaw($data) : [],
-                'needs_manual_token' => $token === null || $token === '',
-            ];
-        }
-
         if ($status >= 300 && $status < 400) {
             $location = $response->getHeaderLine('Location');
-            if ($token === null && $location !== '' && str_contains($location, 'auth_token=')) {
+            if (($token === null || $token === '') && $location !== '' && str_contains($location, 'auth_token=')) {
                 if (preg_match('/auth_token=([^&\s]+)/', $location, $m)) {
                     $token = trim($m[1]);
                 }
             }
+        }
+
+        $hasToken = $token !== null && $token !== '';
+
+        if ($status >= 200 && $status < 300) {
+            if (! $hasToken) {
+                return [
+                    'ok' => false,
+                    'needs_manual_token' => true,
+                    'status' => $status,
+                    'reason' => 'token_not_found',
+                ];
+            }
             return [
+                'ok' => true,
                 'refresh_token' => $token,
-                'raw' => is_array($data) ? $this->sanitizeRaw($data) : [],
-                'needs_manual_token' => $token === null || $token === '',
+                'status' => $status,
+            ];
+        }
+
+        if ($status >= 300 && $status < 400) {
+            if (! $hasToken) {
+                return [
+                    'ok' => false,
+                    'needs_manual_token' => true,
+                    'status' => $status,
+                    'reason' => 'token_not_found',
+                ];
+            }
+            return [
+                'ok' => true,
+                'refresh_token' => $token,
+                'status' => $status,
             ];
         }
 
         if ($status === 403) {
-            if ($token !== null && $token !== '') {
+            if ($hasToken) {
                 return [
+                    'ok' => true,
                     'refresh_token' => $token,
-                    'raw' => is_array($data) ? $this->sanitizeRaw($data) : [],
-                    'needs_manual_token' => false,
+                    'status' => $status,
                 ];
             }
             return null;
         }
 
-        $hint = is_array($data) ? ($data['message'] ?? $data['error'] ?? '') : '';
+        $preview = $this->sanitizePreview($body);
         throw new RuntimeException(
-            'TrendAgent SSO login failed (HTTP ' . $status . ').' . ($hint !== '' ? ' — ' . $hint : '')
+            'TrendAgent SSO login failed (HTTP ' . $status . '). ' . substr($preview, 0, 200)
         );
     }
 

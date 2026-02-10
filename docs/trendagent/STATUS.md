@@ -20,6 +20,7 @@
 | `php artisan trendagent:auth:save-refresh "<token>"` | Сохранить refresh_token из браузера в БД (шифруется в ta_sso_sessions). |
 | `php artisan trendagent:auth:status` | Показать текущую сессию. |
 | `php artisan trendagent:auth:check` | Проверить, что сессия рабочая: запрос к защищённому API (unit_measurements). Вывод: OK / NOT AUTHENTICATED / AUTH TOKEN INVALID. Токены не выводятся. |
+| `php artisan trendagent:auth:debug` | Диагностика ta_sso_sessions: количество записей, id последней, refresh_token raw is null? yes/no, decrypt ok? yes/no + token_len, city_id, last_login_at. Токены не выводятся. |
 
 ### Переменные окружения (.env)
 
@@ -39,7 +40,7 @@ cd /var/www/trend-api/backend   # или ваш путь к backend
 
 # 1) Залогиниться (если ещё не сделано)
 php artisan trendagent:auth:login
-# При успехе — "TrendAgent SSO login successful."
+# При успехе (refresh_token реально сохранён в БД) — "TrendAgent SSO login successful." и "Has refresh_token: yes".
 # При 403 без токена — инструкция по trendagent:auth:save-refresh
 
 # 2) Убедиться, что сессия реально рабочая (запрос к API с auth_token)

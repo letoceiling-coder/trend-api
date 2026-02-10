@@ -35,20 +35,34 @@ class TrendAuthService
     }
 
     /**
-     * Выполнить логин и сохранить refresh_token в БД.
+     * Выполнить логин и сохранить refresh_token в БД. Сохраняет только при ok=true и непустом refresh_token.
+     *
+     * @throws TrendAgentNotAuthenticatedException если login вернул needs_manual_token или токен пустой
      */
     public function loginAndStoreSession(string $phone, string $password, string $lang = 'ru'): TaSsoSession
     {
         $result = $this->sso->login($phone, $password, $lang);
 
-        return $this->storeSessionFromRefreshToken($phone, $result['refresh_token'] ?? null);
+        if (($result['ok'] ?? false) !== true) {
+            $reason = $result['reason'] ?? 'needs_manual_token';
+            throw new TrendAgentNotAuthenticatedException('SSO login not saved: ' . $reason);
+        }
+
+        $refreshToken = $result['refresh_token'] ?? null;
+        if ($refreshToken === null || $refreshToken === '') {
+            throw new TrendAgentNotAuthenticatedException('SSO login not saved: token_not_found');
+        }
+
+        return $this->storeSessionFromRefreshToken($phone, $refreshToken);
     }
 
     /**
-     * Сохранить/обновить сессию на основе уже известного refresh_token.
+     * Сохранить/обновить сессию на основе уже известного refresh_token. city_id подставляется из config если null.
      */
-    public function storeSessionFromRefreshToken(string $phone, ?string $refreshToken): TaSsoSession
+    public function storeSessionFromRefreshToken(string $phone, ?string $refreshToken, ?string $cityId = null): TaSsoSession
     {
+        $cityId = $cityId ?? \Illuminate\Support\Facades\Config::get('trendagent.default_city_id');
+
         $session = TaSsoSession::updateOrCreate(
             [
                 'provider' => 'trendagent',
@@ -56,6 +70,7 @@ class TrendAuthService
             ],
             [
                 'refresh_token'      => $refreshToken,
+                'city_id'            => $cityId,
                 'last_login_at'      => now(),
                 'last_auth_token_at' => null,
                 'is_active'          => true,
