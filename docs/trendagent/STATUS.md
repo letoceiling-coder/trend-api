@@ -19,6 +19,7 @@
 | `php artisan trendagent:auth:login` | Логин по TRENDAGENT_DEFAULT_PHONE / TRENDAGENT_DEFAULT_PASSWORD (без интерактива). При 403/нет токена выводит инструкцию. |
 | `php artisan trendagent:auth:save-refresh "<token>"` | Сохранить refresh_token из браузера в БД (шифруется в ta_sso_sessions). |
 | `php artisan trendagent:auth:status` | Показать текущую сессию. |
+| `php artisan trendagent:auth:check` | Проверить, что сессия рабочая: запрос к защищённому API (unit_measurements). Вывод: OK / NOT AUTHENTICATED / AUTH TOKEN INVALID. Токены не выводятся. |
 
 ### Переменные окружения (.env)
 
@@ -33,10 +34,21 @@
 ### Проверка на сервере
 
 ```bash
-# После деплоя
+# Из папки backend
+cd /var/www/trend-api/backend   # или ваш путь к backend
+
+# 1) Залогиниться (если ещё не сделано)
 php artisan trendagent:auth:login
 # При успехе — "TrendAgent SSO login successful."
 # При 403 без токена — инструкция по trendagent:auth:save-refresh
+
+# 2) Убедиться, что сессия реально рабочая (запрос к API с auth_token)
+php artisan trendagent:auth:check
+# OK — сессия валидна, API отвечает 200.
+# NOT AUTHENTICATED — нет сессии или refresh_token; выполнить auth:login или auth:save-refresh.
+# AUTH TOKEN INVALID — API вернул 401/403; перелогиниться или обновить refresh_token.
 ```
 
-Если 403 сохраняется: проверить `TRENDAGENT_APP_ID` / `TRENDAGENT_APP_ID_ALTERNATIVE`, при проблемах TLS временно `TRENDAGENT_SSO_VERIFY=false` (только для диагностики).
+Требуется `TRENDAGENT_DEFAULT_CITY_ID` в .env (для check используется при запросе к API).
+
+Если 403 при логине сохраняется: проверить `TRENDAGENT_APP_ID` / `TRENDAGENT_APP_ID_ALTERNATIVE`, при проблемах TLS временно `TRENDAGENT_SSO_VERIFY=false` (только для диагностики).

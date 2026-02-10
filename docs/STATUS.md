@@ -48,6 +48,8 @@
 - `docs/architecture.md`
 - `README.md`
 
+**Команды авторизации и проверки сессии** (login, save-refresh, status, **check** — проверка работоспособности по реальному запросу к API): см. **`docs/trendagent/STATUS.md`**.
+
 ---
 
 ## 2. Что подтверждено логами
