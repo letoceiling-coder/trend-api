@@ -4,11 +4,14 @@ namespace App\Domain\TrendAgent\Sync;
 
 use App\Domain\TrendAgent\Sync\SyncRunner;
 use App\Integrations\TrendAgent\Http\TrendHttpClient;
+use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaDirectory;
 use App\Models\Domain\TrendAgent\TaPayloadCache;
 use App\Models\Domain\TrendAgent\TaSyncRun;
 use App\Models\Domain\TrendAgent\TaUnitMeasurement;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Throwable;
 
 class TrendAgentSyncService
@@ -160,5 +163,261 @@ class TrendAgentSyncService
                 'lang' => $lang,
             ]);
         }
+    }
+
+    /**
+     * Sync blocks from blocks/search endpoint with pagination
+     *
+     * @param  array  $params  Additional query params (filters, etc.)
+     * @return array ['run' => TaSyncRun, 'total_pages' => int]
+     */
+    public function syncBlocksSearch(array $params = [], ?string $cityId = null, ?string $lang = null, bool $storeRawPayload = true): array
+    {
+        $cityId = $cityId ?? Config::get('trendagent.default_city_id');
+        $lang = $lang ?? Config::get('trendagent.default_lang', 'ru');
+
+        if (! $cityId) {
+            throw new RuntimeException('City ID is required for syncBlocksSearch');
+        }
+
+        $run = $this->syncRunner->startRun('blocks_search', $cityId, $lang);
+
+        try {
+            $coreApi = config('trendagent.api.core', 'https://api.trendagent.ru');
+            $url = rtrim($coreApi, '/') . '/v4_29/blocks/search';
+
+            // Default params
+            $defaultParams = [
+                'show_type' => 'list',
+                'count' => 20,
+                'offset' => 0,
+                'sort' => 'price',
+                'sort_order' => 'asc',
+            ];
+
+            $queryParams = array_merge($defaultParams, $params, [
+                'city' => $cityId,
+                'lang' => $lang,
+            ]);
+
+            $totalFetched = 0;
+            $totalSaved = 0;
+            $currentOffset = (int) $queryParams['offset'];
+            $count = (int) $queryParams['count'];
+            $maxPages = $params['max_pages'] ?? 50;
+            $pagesProcessed = 0;
+
+            while ($pagesProcessed < $maxPages) {
+                $queryParams['offset'] = $currentOffset;
+
+                $response = $this->http->get($url, $queryParams);
+                $data = $response->json();
+
+                // Shape detector: find array of blocks
+                $blocks = $this->detectBlocksArray($data);
+
+                if ($blocks === null) {
+                    throw new RuntimeException(
+                        'Unable to detect blocks array in response. Response keys: ' . implode(', ', array_keys($data ?? []))
+                    );
+                }
+
+                $pageFetched = count($blocks);
+                $totalFetched += $pageFetched;
+
+                if ($pageFetched > 0) {
+                    $pageSaved = $this->saveBlocks($blocks, $cityId, $lang);
+                    $totalSaved += $pageSaved;
+                }
+
+                // Store raw payload cache for this page
+                if ($storeRawPayload) {
+                    $externalId = sprintf(
+                        'show_type:%s;offset:%d',
+                        $queryParams['show_type'],
+                        $currentOffset
+                    );
+
+                    TaPayloadCache::create([
+                        'provider' => 'trendagent',
+                        'scope' => 'blocks_search_page',
+                        'external_id' => $externalId,
+                        'city_id' => $cityId,
+                        'lang' => $lang,
+                        'payload' => json_encode($data),
+                        'fetched_at' => now(),
+                    ]);
+                }
+
+                $pagesProcessed++;
+
+                // Stop if we got fewer items than requested (last page)
+                if ($pageFetched < $count) {
+                    break;
+                }
+
+                $currentOffset += $count;
+            }
+
+            $this->syncRunner->finishSuccess($run, $totalFetched, $totalSaved);
+
+            return [
+                'run' => $run->fresh(),
+                'total_pages' => $pagesProcessed,
+            ];
+        } catch (Throwable $e) {
+            $this->syncRunner->finishFail($run, $e, [
+                'endpoint' => '/v4_29/blocks/search',
+                'city_id' => $cityId,
+                'lang' => $lang,
+                'params' => $params,
+            ]);
+
+            return [
+                'run' => $run->fresh(),
+                'total_pages' => 0,
+            ];
+        }
+    }
+
+    /**
+     * Detect array of blocks in response. Shape detector.
+     *
+     * @return array|null Array of blocks or null if not found
+     */
+    protected function detectBlocksArray(mixed $data): ?array
+    {
+        if (! is_array($data)) {
+            return null;
+        }
+
+        // Direct array of blocks
+        if ($this->looksLikeBlocksArray($data)) {
+            return $data;
+        }
+
+        // Common patterns: items, data.items, result.items, blocks, data.blocks
+        $pathsToCheck = [
+            ['items'],
+            ['data', 'items'],
+            ['result', 'items'],
+            ['blocks'],
+            ['data', 'blocks'],
+            ['result', 'blocks'],
+        ];
+
+        foreach ($pathsToCheck as $path) {
+            $value = $this->getNestedValue($data, $path);
+            if (is_array($value) && $this->looksLikeBlocksArray($value)) {
+                return $value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if array looks like an array of blocks
+     */
+    protected function looksLikeBlocksArray(array $arr): bool
+    {
+        if (empty($arr)) {
+            return false;
+        }
+
+        // Check first element
+        $first = reset($arr);
+        if (! is_array($first)) {
+            return false;
+        }
+
+        // Must have at least one of these IDs
+        return isset($first['block_id']) || isset($first['_id']) || isset($first['id']);
+    }
+
+    /**
+     * Get nested value from array by path
+     */
+    protected function getNestedValue(array $data, array $path): mixed
+    {
+        $current = $data;
+        foreach ($path as $key) {
+            if (! is_array($current) || ! isset($current[$key])) {
+                return null;
+            }
+            $current = $current[$key];
+        }
+        return $current;
+    }
+
+    /**
+     * Save blocks to database with upsert
+     *
+     * @return int Number of blocks saved
+     */
+    protected function saveBlocks(array $blocks, string $cityId, string $lang): int
+    {
+        $saved = 0;
+
+        DB::transaction(function () use ($blocks, $cityId, $lang, &$saved) {
+            foreach ($blocks as $block) {
+                if (! is_array($block)) {
+                    continue;
+                }
+
+                $blockId = $block['block_id'] ?? $block['_id'] ?? $block['id'] ?? null;
+                if (! $blockId) {
+                    continue;
+                }
+
+                // Extract fields with fallbacks
+                $guid = $block['guid'] ?? $block['slug'] ?? null;
+                $title = $block['title'] ?? $block['name'] ?? null;
+                $kind = $block['kind'] ?? $block['type'] ?? null;
+                $status = $block['status'] ?? null;
+
+                // Prices
+                $minPrice = $block['min_price'] ?? $block['price_from'] ?? $block['lowest_price'] ?? null;
+                $maxPrice = $block['max_price'] ?? $block['price_to'] ?? $block['highest_price'] ?? null;
+
+                $deadline = $block['deadline'] ?? null;
+                $developerName = $block['developer_name'] ?? $block['developer'] ?? null;
+
+                // Coordinates
+                $lat = null;
+                $lng = null;
+                if (isset($block['lat']) && isset($block['lng'])) {
+                    $lat = $block['lat'];
+                    $lng = $block['lng'];
+                } elseif (isset($block['geo']['lat']) && isset($block['geo']['lng'])) {
+                    $lat = $block['geo']['lat'];
+                    $lng = $block['geo']['lng'];
+                }
+
+                TaBlock::updateOrCreate(
+                    ['block_id' => (string) $blockId],
+                    [
+                        'guid' => $guid,
+                        'title' => $title,
+                        'city_id' => $cityId,
+                        'lang' => $lang,
+                        'kind' => $kind,
+                        'status' => $status,
+                        'min_price' => $minPrice ? (int) $minPrice : null,
+                        'max_price' => $maxPrice ? (int) $maxPrice : null,
+                        'deadline' => $deadline,
+                        'developer_name' => $developerName,
+                        'lat' => $lat,
+                        'lng' => $lng,
+                        'raw' => $block,
+                        'fetched_at' => now(),
+                    ]
+                );
+
+                $saved++;
+            }
+        });
+
+        return $saved;
     }
 }

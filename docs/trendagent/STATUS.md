@@ -76,6 +76,7 @@ php artisan trendagent:auth:check
 |---------|----------|
 | `php artisan trendagent:sync:unit-measurements [--city=...] [--lang=ru] [--no-raw]` | Синхронизация unit_measurements из core API (`/v4_29/unit_measurements`). По умолчанию использует `TRENDAGENT_DEFAULT_CITY_ID`. Сохраняет в `ta_unit_measurements` через upsert по `id`. С флагом `--no-raw` не сохраняет в `ta_payload_cache`. |
 | `php artisan trendagent:sync:directories [--types=rooms,deadlines,...] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация справочников из apartment-api (`/v1/directories`). По умолчанию загружает базовый набор: rooms, deadlines, deadline_keys, regions, subways, building_types, finishings, parking_types, locations. Сохраняет по каждому type отдельно в `ta_directories` (unique: type+city_id+lang). |
+| `php artisan trendagent:sync:blocks [--show-type=list] [--count=20] [--max-pages=50] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация blocks из core API (`/v4_29/blocks/search`). Параметры: `--show-type` (list/map/plans), `--count` (items per page), `--max-pages` (защита от бесконечности). Использует **shape detector** для определения структуры ответа (поддерживает `items`, `data.items`, `result.items` и др.). Сохраняет в `ta_blocks` через upsert по `block_id`. Pagination: offset увеличивается автоматически до достижения конца или `--max-pages`. |
 
 ### Пример использования
 
@@ -89,6 +90,9 @@ php artisan trendagent:sync:unit-measurements
 # Синхронизация конкретных типов справочников
 php artisan trendagent:sync:directories --types=rooms,deadlines,regions
 
+# Синхронизация blocks (объекты/ЖК)
+php artisan trendagent:sync:blocks --show-type=list --count=50 --max-pages=10
+
 # Без сохранения raw payload
 php artisan trendagent:sync:unit-measurements --no-raw
 ```
@@ -99,3 +103,4 @@ php artisan trendagent:sync:unit-measurements --no-raw
 - При ошибке sync run сохраняется со status='failed', error_message и error_context (токены замаскированы).
 - Все sync операции выполняются в транзакциях (upsert).
 - Сырой payload cache опционален (флаг `--no-raw`).
+- **Shape detector** (blocks): автоматически определяет структуру JSON-ответа, поддерживает различные форматы (`items`, `data.items`, `result.items`, `blocks`, `data.blocks`). При невозможности обнаружить массив блоков sync завершается с ошибкой и записью response keys в error_context.
