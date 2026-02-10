@@ -13,14 +13,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 class TrendagentAuthCheck extends Command
 {
-    protected $signature = 'trendagent:auth:check
-        {--verbose : Same as -vvv: show cityId, lang, sso_base, verify, url}';
+    protected $signature = 'trendagent:auth:check';
 
     protected $description = 'Verify TrendAgent session: get auth_token from SSO (real reason on fail). Exit 0 only if token obtained.';
 
     public function handle(TrendAuthService $auth): int
     {
-        $verbose = $this->option('verbose') || $this->output->getVerbosity() >= OutputInterface::VERBOSITY_DEBUG;
+        $verbose = $this->output->getVerbosity() >= OutputInterface::VERBOSITY_DEBUG;
 
         /** @var TaSsoSession|null $session */
         $session = TaSsoSession::query()
