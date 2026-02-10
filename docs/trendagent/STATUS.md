@@ -17,10 +17,10 @@
 | Команда | Описание |
 |--------|----------|
 | `php artisan trendagent:auth:login` | Логин по TRENDAGENT_DEFAULT_PHONE / TRENDAGENT_DEFAULT_PASSWORD (без интерактива). При 403/нет токена выводит инструкцию. |
-| `php artisan trendagent:auth:save-refresh "<token>"` | Сохранить refresh_token из браузера в БД (шифруется в ta_sso_sessions). |
+| `php artisan trendagent:auth:save-refresh "<token>"` | Сохранить refresh_token из браузера в БД (шифруется в ta_sso_sessions). Извлекает и сохраняет app_id из JWT. |
 | `php artisan trendagent:auth:status` | Показать текущую сессию. |
-| `php artisan trendagent:auth:check` | Проверить, что сессия рабочая: запрос к защищённому API (unit_measurements). Вывод: OK / NOT AUTHENTICATED / AUTH TOKEN INVALID. Токены не выводятся. |
-| `php artisan trendagent:auth:debug` | Диагностика ta_sso_sessions: количество записей, id последней, refresh_token raw is null? yes/no, decrypt ok? yes/no + token_len, city_id, last_login_at. Токены не выводятся. |
+| `php artisan trendagent:auth:check` | Проверить сессию: GET /v1/auth_token через Guzzle с app_id из JWT payload. AUTH OK + token_len + exp/iat при успехе; AUTH FAIL + reason (http_status, body_preview) при ошибке. Exit 0 только при полученном auth_token. С опцией **-vvv** выводит cityId, lang, sso_base, verify, url, session.app_id (db), refresh_token.payload.app_id (jwt), chosenAppId used. Токены не выводятся. Автоматический retry при session_app_id_doesnt_match. |
+| `php artisan trendagent:auth:debug` | Диагностика ta_sso_sessions: количество записей, id последней, refresh_token raw is null? yes/no, decrypt ok? yes/no + token_len, city_id, app_id, last_login_at. Токены не выводятся. |
 
 ### Переменные окружения (.env)
 

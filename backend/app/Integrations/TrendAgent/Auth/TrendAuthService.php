@@ -36,6 +36,7 @@ class TrendAuthService
 
     /**
      * Выполнить логин и сохранить refresh_token в БД. Сохраняет только при ok=true и непустом refresh_token.
+     * app_id извлекается из refresh_token payload и сохраняется в БД.
      *
      * @throws TrendAgentNotAuthenticatedException если login вернул needs_manual_token или токен пустой
      */
@@ -53,15 +54,20 @@ class TrendAuthService
             throw new TrendAgentNotAuthenticatedException('SSO login not saved: token_not_found');
         }
 
-        return $this->storeSessionFromRefreshToken($phone, $refreshToken);
+        $appId = $this->sso->extractAppIdFromRefreshToken($refreshToken);
+        return $this->storeSessionFromRefreshToken($phone, $refreshToken, null, $appId);
     }
 
     /**
-     * Сохранить/обновить сессию на основе уже известного refresh_token. city_id подставляется из config если null.
+     * Сохранить/обновить сессию на основе уже известного refresh_token. city_id и app_id подставляются из config/JWT если null.
      */
-    public function storeSessionFromRefreshToken(string $phone, ?string $refreshToken, ?string $cityId = null): TaSsoSession
+    public function storeSessionFromRefreshToken(string $phone, ?string $refreshToken, ?string $cityId = null, ?string $appId = null): TaSsoSession
     {
         $cityId = $cityId ?? \Illuminate\Support\Facades\Config::get('trendagent.default_city_id');
+
+        if ($appId === null && $refreshToken !== null) {
+            $appId = $this->sso->extractAppIdFromRefreshToken($refreshToken);
+        }
 
         $session = TaSsoSession::updateOrCreate(
             [
@@ -70,6 +76,7 @@ class TrendAuthService
             ],
             [
                 'refresh_token'      => $refreshToken,
+                'app_id'             => $appId,
                 'city_id'            => $cityId,
                 'last_login_at'      => now(),
                 'last_auth_token_at' => null,
@@ -109,7 +116,7 @@ class TrendAuthService
             $session = $this->ensureSession();
 
             try {
-                $token = $this->sso->getAuthToken($session->refresh_token, $cityId, $lang);
+                $token = $this->sso->getAuthToken($session->refresh_token, $cityId, $lang, $session->app_id);
             } catch (RuntimeException $e) {
                 $code = (int) $e->getCode();
                 // Обнуляем refresh_token только при явном 401/403 от SSO (rejected).
@@ -150,7 +157,7 @@ class TrendAuthService
 
         $lang = (string) \Illuminate\Support\Facades\Config::get('trendagent.default_lang', 'ru');
 
-        return $this->sso->getAuthToken($session->refresh_token, $cityId, $lang);
+        return $this->sso->getAuthToken($session->refresh_token, $cityId, $lang, $session->app_id);
     }
 
     /**

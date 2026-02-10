@@ -37,6 +37,7 @@ class TrendagentAuthDebug extends Command
         $this->line('decrypt ok? ' . ($decryptOk ? 'yes' : 'no') . ($decryptOk ? ' token_len=' . strlen($decrypted) : ''));
 
         $this->line('city_id: ' . ($last->city_id ?? 'null'));
+        $this->line('app_id: ' . ($last->app_id ?? 'null'));
         $this->line('last_login_at: ' . ($last->last_login_at?->format('c') ?? 'null'));
 
         return self::SUCCESS;

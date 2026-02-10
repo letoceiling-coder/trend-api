@@ -15,6 +15,7 @@ class TaSsoSession extends Model
     protected $fillable = [
         'provider',
         'phone',
+        'app_id',
         'city_id',
         'refresh_token',
         'refresh_expires_at',

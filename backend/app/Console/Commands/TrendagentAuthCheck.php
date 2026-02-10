@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Integrations\TrendAgent\Auth\TrendAgentNotAuthenticatedException;
 use App\Integrations\TrendAgent\Auth\TrendAuthService;
+use App\Integrations\TrendAgent\Auth\TrendSsoClient;
 use App\Models\Domain\TrendAgent\TaSsoSession;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
@@ -17,7 +18,7 @@ class TrendagentAuthCheck extends Command
 
     protected $description = 'Verify TrendAgent session: get auth_token from SSO (real reason on fail). Exit 0 only if token obtained.';
 
-    public function handle(TrendAuthService $auth): int
+    public function handle(TrendAuthService $auth, TrendSsoClient $sso): int
     {
         $verbose = $this->output->getVerbosity() >= OutputInterface::VERBOSITY_DEBUG;
 
@@ -57,11 +58,19 @@ class TrendagentAuthCheck extends Command
             $ssoBase = rtrim((string) Config::get('trendagent.sso_base'), '/');
             $verify = Config::get('trendagent.sso_verify');
             $url = $ssoBase . '/v1/auth_token/?city=' . urlencode($cityId) . '&lang=' . urlencode($lang);
+
+            $appIdDb = $session->app_id;
+            $appIdJwt = $sso->extractAppIdFromRefreshToken($session->refresh_token);
+            $chosenAppId = $appIdDb ?? $appIdJwt ?? Config::get('trendagent.app_id') ?? Config::get('trendagent.app_id_alternative');
+
             $this->line('cityId: ' . $cityId);
             $this->line('lang: ' . $lang);
             $this->line('sso_base: ' . $ssoBase);
             $this->line('verify: ' . ($verify ? 'true' : 'false'));
             $this->line('refresh_token from db: ok');
+            $this->line('session.app_id (db): ' . ($appIdDb ?? 'null'));
+            $this->line('refresh_token.payload.app_id (jwt): ' . ($appIdJwt ?? 'null'));
+            $this->line('chosenAppId used: ' . ($chosenAppId ?? 'null'));
             $this->line('request: GET ' . $url . ' (Authorization: Bearer ***)');
         }
 

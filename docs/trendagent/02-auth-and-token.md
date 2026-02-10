@@ -165,6 +165,33 @@ GET https://sso-api.trend.tech/v1/auth_token/
   - подменять TTL токена (хардкодить время жизни);
   - логиниться повторно «по расписанию» вместо корректного refresh‑флоу.
 
+### 5.4. app_id: извлечение из JWT и избежание session_app_id_doesnt_match
+
+**Проблема:** При запросе `GET /v1/auth_token/` SSO проверяет соответствие `app_id` между `refresh_token` (JWT payload) и контекстом запроса (Referer/Origin). Если `app_id` не совпадает, SSO возвращает `401 {"message":"session_app_id_doesnt_match"}`.
+
+**Решение (реализовано в `TrendSsoClient`):**
+
+1. **Извлечение `app_id` из `refresh_token` JWT payload** (метод `extractAppIdFromRefreshToken`):
+   - JWT payload декодируется без валидации подписи (только base64url decode + json_decode).
+   - Из payload извлекается поле `app_id` (24-символьный hex-строка).
+   - Извлечённый `app_id` сохраняется в `ta_sso_sessions.app_id` при логине.
+
+2. **Использование `app_id` при запросе `/v1/auth_token`**:
+   - Выбирается `app_id` в порядке приоритета:
+     - явный параметр `$appId` (если передан)
+     - `app_id` из JWT payload (`$appIdJwt`)
+     - fallback: `config('trendagent.app_id')` или `app_id_alternative`
+   - Выбранный `app_id` используется в `Referer: https://sso.trend.tech/login?app_id={chosenAppId}`.
+
+3. **Retry при несоответствии**:
+   - Если запрос возвращает `401` с `session_app_id_doesnt_match` и `$appIdJwt` отличается от `$chosenAppId`, выполняется повторная попытка с `$appIdJwt`.
+   - Это защищает от случаев, когда в БД был сохранён старый/неверный `app_id`, но JWT содержит правильный.
+
+**Диагностика:** команда `trendagent:auth:check -vvv` показывает:
+- `session.app_id (db)` — сохранённый в БД
+- `refresh_token.payload.app_id (jwt)` — извлечённый из JWT
+- `chosenAppId used` — итоговый выбранный для запроса
+
 ---
 
 ## 6. Роли слоёв: Vue vs Laravel

@@ -181,4 +181,64 @@ class TrendSsoClientTest extends TestCase
         $token = $client->extractTokenFromHeadersAndJson($setCookieHeaders, $jsonBody);
         $this->assertSame('rt_after_403', $token);
     }
+
+    public function test_decode_jwt_payload_valid(): void
+    {
+        $client = new TrendSsoClient();
+        // Sample JWT: header.payload.signature where payload = base64url({"app_id":"66d84ffc4c0168b8ccd281c7","exp":1234567890})
+        $payload = base64_encode(json_encode(['app_id' => '66d84ffc4c0168b8ccd281c7', 'exp' => 1234567890]));
+        $payload = rtrim(strtr($payload, '+/', '-_'), '=');
+        $jwt = 'eyJhbGciOiJSUzI1NiJ9.' . $payload . '.signature';
+
+        $result = $client->decodeJwtPayload($jwt);
+        $this->assertIsArray($result);
+        $this->assertSame('66d84ffc4c0168b8ccd281c7', $result['app_id']);
+        $this->assertSame(1234567890, $result['exp']);
+    }
+
+    public function test_decode_jwt_payload_invalid(): void
+    {
+        $client = new TrendSsoClient();
+        $this->assertNull($client->decodeJwtPayload(''));
+        $this->assertNull($client->decodeJwtPayload('invalid'));
+        $this->assertNull($client->decodeJwtPayload('part1.part2'));
+    }
+
+    public function test_extract_app_id_from_refresh_token_valid(): void
+    {
+        $client = new TrendSsoClient();
+        $payload = base64_encode(json_encode(['app_id' => '66d84ffc4c0168b8ccd281c7', 'user_id' => 123]));
+        $payload = rtrim(strtr($payload, '+/', '-_'), '=');
+        $jwt = 'header.' . $payload . '.signature';
+
+        $appId = $client->extractAppIdFromRefreshToken($jwt);
+        $this->assertSame('66d84ffc4c0168b8ccd281c7', $appId);
+    }
+
+    public function test_extract_app_id_from_refresh_token_no_app_id(): void
+    {
+        $client = new TrendSsoClient();
+        $payload = base64_encode(json_encode(['user_id' => 123]));
+        $payload = rtrim(strtr($payload, '+/', '-_'), '=');
+        $jwt = 'header.' . $payload . '.signature';
+
+        $this->assertNull($client->extractAppIdFromRefreshToken($jwt));
+    }
+
+    public function test_extract_app_id_from_refresh_token_invalid_app_id_format(): void
+    {
+        $client = new TrendSsoClient();
+        $payload = base64_encode(json_encode(['app_id' => 'short']));
+        $payload = rtrim(strtr($payload, '+/', '-_'), '=');
+        $jwt = 'header.' . $payload . '.signature';
+
+        $this->assertNull($client->extractAppIdFromRefreshToken($jwt));
+    }
+
+    public function test_extract_app_id_from_refresh_token_invalid_jwt(): void
+    {
+        $client = new TrendSsoClient();
+        $this->assertNull($client->extractAppIdFromRefreshToken(''));
+        $this->assertNull($client->extractAppIdFromRefreshToken('invalid'));
+    }
 }

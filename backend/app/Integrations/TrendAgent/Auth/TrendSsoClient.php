@@ -54,6 +54,42 @@ class TrendSsoClient
     }
 
     /**
+     * Decode JWT payload (middle part, no signature validation). Returns assoc array or null.
+     */
+    public function decodeJwtPayload(string $jwt): ?array
+    {
+        $parts = explode('.', $jwt);
+        if (count($parts) !== 3) {
+            return null;
+        }
+        $payload = $parts[1];
+        $payload = str_replace(['-', '_'], ['+', '/'], $payload);
+        $mod = strlen($payload) % 4;
+        if ($mod > 0) {
+            $payload .= str_repeat('=', 4 - $mod);
+        }
+        $decoded = base64_decode($payload, true);
+        if ($decoded === false) {
+            return null;
+        }
+        $data = json_decode($decoded, true);
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * Extract app_id from refresh_token JWT payload. No signature check.
+     */
+    public function extractAppIdFromRefreshToken(string $refreshToken): ?string
+    {
+        $payload = $this->decodeJwtPayload($refreshToken);
+        if ($payload === null) {
+            return null;
+        }
+        $appId = $payload['app_id'] ?? null;
+        return is_string($appId) && $this->validateAppId($appId) ? $appId : null;
+    }
+
+    /**
      * Extract app_id from redirect history (last URL in chain). For unit tests.
      *
      * @param string[] $redirectUrls
@@ -247,23 +283,49 @@ class TrendSsoClient
     }
 
     /**
-     * Получить краткоживущий auth_token по refresh_token. Guzzle + браузерные заголовки (как в AL).
-     * 200: обязан auth_token в JSON. 401/403: RuntimeException с code=status. Остальное: RuntimeException с preview.
+     * Получить краткоживущий auth_token по refresh_token. Guzzle + браузерные заголовки. app_id из JWT payload.
+     * 200: обязан auth_token в JSON. 401 session_app_id_doesnt_match: retry с appIdJwt если отличается. 401/403 итого: RuntimeException с code=status.
+     *
+     * @param  string|null  $appId  Явный app_id (опционально); fallback: из JWT payload, config
      */
-    public function getAuthToken(string $refreshToken, string $cityId, string $lang = 'ru'): string
+    public function getAuthToken(string $refreshToken, string $cityId, string $lang = 'ru', ?string $appId = null): string
+    {
+        $appIdJwt = $this->extractAppIdFromRefreshToken($refreshToken);
+        $chosenAppId = $appId ?? $appIdJwt ?? (string) Config::get('trendagent.app_id', '') ?: (string) Config::get('trendagent.app_id_alternative', '');
+
+        $result = $this->doGetAuthToken($refreshToken, $cityId, $lang, $chosenAppId);
+
+        if ($result['retry'] === true && $appIdJwt !== null && $appIdJwt !== $chosenAppId) {
+            $result = $this->doGetAuthToken($refreshToken, $cityId, $lang, $appIdJwt);
+        }
+
+        if ($result['ok'] === false) {
+            throw new RuntimeException($result['error_message'], $result['error_code']);
+        }
+
+        return $result['auth_token'];
+    }
+
+    /**
+     * Внутренний helper для GET /v1/auth_token с app_id в Referer.
+     *
+     * @return array{ok: bool, auth_token?: string, retry?: bool, error_message?: string, error_code?: int}
+     */
+    protected function doGetAuthToken(string $refreshToken, string $cityId, string $lang, string $chosenAppId): array
     {
         $url = $this->ssoBase . '/v1/auth_token/?' . http_build_query(['city' => $cityId, 'lang' => $lang]);
-        $origin = (string) Config::get('trendagent.auth_token_origin', 'https://spb.trendagent.ru');
         $jar = new CookieJar;
         $client = $this->createGuzzleClient($jar);
+
+        $referer = $this->ssoWebBase . '/login' . ($chosenAppId !== '' ? '?app_id=' . urlencode($chosenAppId) : '');
 
         $headers = [
             'Authorization' => 'Bearer ' . $refreshToken,
             'Accept' => 'application/json, text/plain, */*',
             'Accept-Language' => 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
             'User-Agent' => (string) Config::get('trendagent.user_agent'),
-            'Origin' => $origin,
-            'Referer' => rtrim($origin, '/') . '/',
+            'Origin' => $this->ssoWebBase,
+            'Referer' => $referer,
             'Sec-Fetch-Mode' => 'cors',
             'Sec-Fetch-Site' => 'cross-site',
             'Sec-Ch-Ua' => '"Chromium";v="142", "Google Chrome";v="142", "Not_A Brand";v="99"',
@@ -284,7 +346,11 @@ class TrendSsoClient
             } else {
                 $hint = 'connection';
             }
-            throw new RuntimeException('auth_token request failed: ' . $hint . ' — ' . $url, 0, $e);
+            return [
+                'ok' => false,
+                'error_message' => 'auth_token request failed: ' . $hint . ' — ' . $url,
+                'error_code' => 0,
+            ];
         }
 
         $status = $response->getStatusCode();
@@ -293,19 +359,36 @@ class TrendSsoClient
 
         if ($status === 401 || $status === 403) {
             $preview = $this->sanitizePreview($body);
-            throw new RuntimeException('refresh token rejected — ' . substr($preview, 0, 500), $status);
+            $retry = $status === 401 && is_array($data) && str_contains((string) ($data['message'] ?? ''), 'session_app_id_doesnt_match');
+            return [
+                'ok' => false,
+                'retry' => $retry,
+                'error_message' => 'refresh token rejected — ' . substr($preview, 0, 500),
+                'error_code' => $status,
+            ];
         }
 
         if ($status !== 200) {
             $preview = $this->sanitizePreview($body);
-            throw new RuntimeException('auth_token request failed: HTTP ' . $status . ' — ' . substr($preview, 0, 300), $status);
+            return [
+                'ok' => false,
+                'error_message' => 'auth_token request failed: HTTP ' . $status . ' — ' . substr($preview, 0, 300),
+                'error_code' => $status,
+            ];
         }
 
         if (! is_array($data) || ! isset($data['auth_token']) || ! is_string($data['auth_token'])) {
-            throw new RuntimeException('auth_token missing in response');
+            return [
+                'ok' => false,
+                'error_message' => 'auth_token missing in response',
+                'error_code' => 0,
+            ];
         }
 
-        return $data['auth_token'];
+        return [
+            'ok' => true,
+            'auth_token' => $data['auth_token'],
+        ];
     }
 
     /**
