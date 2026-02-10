@@ -296,11 +296,13 @@ class TrendAgentSyncService
             return $data;
         }
 
-        // Common patterns: items, data.items, result.items, blocks, data.blocks
+        // Common patterns (ordered by real API observations)
         $pathsToCheck = [
+            ['data', 'results'],  // Real TrendAgent API structure
             ['items'],
             ['data', 'items'],
             ['result', 'items'],
+            ['results'],
             ['blocks'],
             ['data', 'blocks'],
             ['result', 'blocks'],
