@@ -393,6 +393,17 @@ class TrendAgentSyncService
     }
 
     /**
+     * Ensure value is a scalar string for DB string columns (avoid array/object to string conversion)
+     */
+    protected function scalarString(mixed $value): ?string
+    {
+        if ($value === null || is_scalar($value)) {
+            return $value === null ? null : (string) $value;
+        }
+        return null;
+    }
+
+    /**
      * Get nested value from array by path
      */
     protected function getNestedValue(array $data, array $path): mixed
@@ -614,13 +625,18 @@ class TrendAgentSyncService
                 }
                 $blockId = $blockId ? (string) $blockId : null;
 
-                $title = $item['title'] ?? $item['name'] ?? $item['number'] ?? null;
-                $guid = $item['guid'] ?? $item['slug'] ?? null;
+                $title = $this->scalarString($item['title'] ?? $item['name'] ?? $item['number'] ?? null);
+                $guid = $this->scalarString($item['guid'] ?? $item['slug'] ?? null);
                 $rooms = isset($item['rooms']) ? (int) $item['rooms'] : null;
-                $areaTotal = isset($item['area_total']) ? $item['area_total'] : ($item['area'] ?? null);
+                $areaTotal = isset($item['area_total']) ? $item['area_total'] : ($item['area'] ?? $item['area_given'] ?? null);
+                if ($areaTotal !== null && ! is_numeric($areaTotal)) {
+                    $areaTotal = null;
+                }
                 $floor = isset($item['floor']) ? (int) $item['floor'] : null;
                 $price = isset($item['price']) ? (int) $item['price'] : (isset($item['price_from']) ? (int) $item['price_from'] : null);
-                $status = $item['status'] ?? null;
+                $statusRaw = $item['status'] ?? null;
+                $status = is_array($statusRaw) ? ($statusRaw['name'] ?? $statusRaw['name_short'] ?? null) : $statusRaw;
+                $status = $this->scalarString($status);
 
                 $attrs = [
                     'block_id' => $blockId,
