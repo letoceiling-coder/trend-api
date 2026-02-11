@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_directories')) {
+            return;
+        }
         Schema::create('ta_directories', function (Blueprint $table) {
             $table->id();
             $table->string('type', 100); // 'rooms', 'deadlines', 'regions', etc.
