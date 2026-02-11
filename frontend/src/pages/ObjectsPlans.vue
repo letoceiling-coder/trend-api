@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
-import { RouterLink } from 'vue-router';
 import PageLayout from '../components/ui/PageLayout.vue';
 import PageLayoutFilter from '../components/ui/PageLayoutFilter.vue';
 import ObjectsHeader from '../components/ui/ObjectsHeader.vue';
@@ -34,8 +33,6 @@ async function load() {
 
 onMounted(load);
 watch([offset], load);
-
-const total = computed(() => meta.value.pagination?.total ?? plans.value.length);
 
 function cardFromPlan(a: ApartmentItem) {
   return {
