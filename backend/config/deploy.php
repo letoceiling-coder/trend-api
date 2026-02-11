@@ -54,7 +54,7 @@ return [
     'run_queue_restart' => filter_var(env('DEPLOY_RUN_QUEUE_RESTART', true), FILTER_VALIDATE_BOOLEAN),
     'frontend_build_cmd' => env(
         'DEPLOY_FRONTEND_BUILD_CMD',
-        'npm ci && npm run build'
+        'npm install && npm run build'
     ),
     'backend_composer_cmd' => env(
         'DEPLOY_BACKEND_COMPOSER_CMD',
