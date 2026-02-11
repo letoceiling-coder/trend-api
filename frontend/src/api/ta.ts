@@ -9,6 +9,12 @@ export const taApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/** For refresh from frontend (no internal key). Rate-limited on backend. */
+export const taUiApi = axios.create({
+  baseURL: `${baseURL}/api/ta-ui`,
+  headers: { 'Content-Type': 'application/json' },
+});
+
 export interface PaginationMeta {
   total?: number;
   count?: number;
@@ -78,6 +84,22 @@ export async function getBlock(blockId: string) {
 export async function getBlockDetail(blockId: string) {
   const { data } = await taApi.get<ApiResponse<BlockItemWithDetail>>(
     `/blocks/${encodeURIComponent(blockId)}`
+  );
+  return data;
+}
+
+/** POST /api/ta-ui/blocks/{id}/refresh — queue block detail sync (no internal key) */
+export async function refreshBlockDetail(blockId: string) {
+  const { data } = await taUiApi.post<ApiResponse<{ queued: boolean }>>(
+    `blocks/${encodeURIComponent(blockId)}/refresh`
+  );
+  return data;
+}
+
+/** POST /api/ta-ui/apartments/{id}/refresh — queue apartment detail sync (no internal key) */
+export async function refreshApartmentDetail(apartmentId: string) {
+  const { data } = await taUiApi.post<ApiResponse<{ queued: boolean }>>(
+    `apartments/${encodeURIComponent(apartmentId)}/refresh`
   );
   return data;
 }

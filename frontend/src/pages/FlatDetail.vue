@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 import PageLayout from '../components/ui/PageLayout.vue';
 import ObjectGallery from '../components/ui/ObjectGallery.vue';
 import {
   getApartmentDetail,
+  refreshApartmentDetail,
   type ApartmentItemWithDetail,
   type ApartmentDetailPayload,
 } from '../api/ta';
@@ -15,6 +16,59 @@ const apartmentId = computed(() => String(route.params.apartmentId ?? ''));
 const apartment = ref<ApartmentItemWithDetail | null>(null);
 const loading = ref(true);
 const error = ref<{ status?: number; message?: string } | null>(null);
+
+const refreshState = ref('');
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 30000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pollDeadline = 0;
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+async function refresh() {
+  if (!apartmentId.value) return;
+  error.value = null;
+  refreshState.value = '';
+  const previousFetchedAt = detail.value?.fetched_at ?? null;
+  try {
+    await refreshApartmentDetail(apartmentId.value);
+    refreshState.value = 'queued';
+    pollDeadline = Date.now() + POLL_TIMEOUT_MS;
+    const check = async () => {
+      if (Date.now() > pollDeadline) {
+        stopPolling();
+        refreshState.value = 'fail';
+        return;
+      }
+      refreshState.value = 'loading';
+      const res = await getApartmentDetail(apartmentId.value);
+      const next = (res.data as ApartmentItemWithDetail) ?? null;
+      apartment.value = next;
+      const nextFetchedAt = next?.detail?.fetched_at ?? null;
+      if (nextFetchedAt && nextFetchedAt !== previousFetchedAt) {
+        stopPolling();
+        refreshState.value = 'success';
+        setTimeout(() => { refreshState.value = ''; }, 2000);
+        return;
+      }
+    };
+    await check();
+    pollTimer = setInterval(check, POLL_INTERVAL_MS);
+  } catch (e: unknown) {
+    stopPolling();
+    const ax = e as { response?: { status?: number }; message?: string };
+    error.value = {
+      status: ax.response?.status,
+      message: ax.message ?? 'Ошибка загрузки',
+    };
+    refreshState.value = 'fail';
+  }
+}
 
 async function load() {
   if (!apartmentId.value) return;
@@ -36,6 +90,7 @@ async function load() {
 }
 
 onMounted(load);
+onUnmounted(stopPolling);
 watch(apartmentId, load);
 
 const detail = computed(() => apartment.value?.detail ?? null);
@@ -118,6 +173,22 @@ const pricesGraph = computed(() => detail.value?.prices_graph_payload);
             </h1>
           </header>
 
+          <div v-if="!hasDetail || refreshState" class="mb-4 rounded-xl border border-amber-800 bg-amber-950/30 p-3 text-amber-200 text-sm">
+            <span v-if="refreshState === 'queued'">В очереди…</span>
+            <span v-else-if="refreshState === 'loading'">Обновление…</span>
+            <span v-else-if="refreshState === 'success'">Готово.</span>
+            <span v-else-if="refreshState === 'fail'">Обновление не пришло или ошибка.</span>
+            <span v-else-if="!hasDetail">Детали пока не загружены.</span>
+            <button
+              type="button"
+              class="ml-2 rounded border border-amber-600 bg-amber-900/50 px-2 py-1 hover:bg-amber-900/70 disabled:opacity-50"
+              :disabled="refreshState === 'queued' || refreshState === 'loading'"
+              @click="refresh"
+            >
+              {{ refreshState === 'queued' || refreshState === 'loading' ? 'Ждём…' : 'Обновить детали' }}
+            </button>
+          </div>
+
           <div class="grid gap-6 lg:grid-cols-2">
             <div class="apartment-row apartment-row--actions ctaBlock">
               <ObjectGallery
@@ -125,11 +196,8 @@ const pricesGraph = computed(() => detail.value?.prices_graph_payload);
                 :images="images"
                 :alt="String(apartment.title ?? '')"
               />
-              <div
-                v-if="!images.length"
-                class="mt-2 rounded-lg border border-dashed border-slate-600 bg-slate-800/30 p-4 text-center text-sm text-slate-500"
-              >
-                Планировка / галерея — заглушка (Leaflet позже).
+              <div class="mt-4">
+                <FloorplanViewer :unified-payload="detail?.unified_payload ?? undefined" />
               </div>
             </div>
 

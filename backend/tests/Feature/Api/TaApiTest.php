@@ -293,6 +293,51 @@ class TaApiTest extends TestCase
             ->assertJson(['message' => 'Block not found']);
     }
 
+    public function test_ta_ui_blocks_refresh_returns_200_queued_true(): void
+    {
+        TaBlock::create([
+            'block_id' => 'block-ui-refresh',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'title' => 'Block for ta-ui',
+            'fetched_at' => now(),
+            'raw' => '{}',
+        ]);
+
+        $response = $this->postJson('/api/ta-ui/blocks/block-ui-refresh/refresh');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.queued', true)
+            ->assertJsonPath('meta.job', 'SyncBlockDetailJob')
+            ->assertJsonPath('meta.id', 'block-ui-refresh');
+    }
+
+    public function test_ta_ui_apartments_refresh_returns_200_queued_true(): void
+    {
+        TaApartment::create([
+            'apartment_id' => 'apt-ui-refresh',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'title' => 'Apt for ta-ui',
+            'fetched_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/ta-ui/apartments/apt-ui-refresh/refresh');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.queued', true)
+            ->assertJsonPath('meta.job', 'SyncApartmentDetailJob')
+            ->assertJsonPath('meta.id', 'apt-ui-refresh');
+    }
+
+    public function test_ta_ui_blocks_refresh_returns_404_when_not_found(): void
+    {
+        $response = $this->postJson('/api/ta-ui/blocks/nonexistent-block/refresh');
+
+        $response->assertStatus(404)
+            ->assertJson(['message' => 'Block not found']);
+    }
+
     public function test_ta_directories_index_requires_type(): void
     {
         $response = $this->getJson('/api/ta/directories');

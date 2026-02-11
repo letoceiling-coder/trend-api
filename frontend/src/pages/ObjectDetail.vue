@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 import PageLayout from '../components/ui/PageLayout.vue';
 import ObjectGallery from '../components/ui/ObjectGallery.vue';
 import Tabs from '../components/ui/Tabs.vue';
 import {
   getBlockDetail,
+  refreshBlockDetail,
   type BlockItemWithDetail,
   type BlockDetailPayload,
 } from '../api/ta';
@@ -16,8 +17,14 @@ const blockId = computed(() => String(route.params.blockId ?? ''));
 const block = ref<BlockItemWithDetail | null>(null);
 const loading = ref(true);
 const error = ref<{ status?: number; message?: string } | null>(null);
-const refreshing = ref(false);
 const activeTab = ref('about');
+
+/** '' | queued | loading (polling) | success | fail */
+const refreshState = ref('');
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 30000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let pollDeadline = 0;
 
 const tabs = [
   { id: 'about', label: 'О комплексе' },
@@ -49,25 +56,55 @@ async function load() {
   }
 }
 
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
 async function refresh() {
   if (!blockId.value) return;
-  refreshing.value = true;
   error.value = null;
+  refreshState.value = '';
+  const previousFetchedAt = detail.value?.fetched_at ?? null;
   try {
-    const res = await getBlockDetail(blockId.value);
-    block.value = (res.data as BlockItemWithDetail) ?? null;
+    await refreshBlockDetail(blockId.value);
+    refreshState.value = 'queued';
+    pollDeadline = Date.now() + POLL_TIMEOUT_MS;
+    const check = async () => {
+      if (Date.now() > pollDeadline) {
+        stopPolling();
+        refreshState.value = 'fail';
+        return;
+      }
+      refreshState.value = 'loading';
+      const res = await getBlockDetail(blockId.value);
+      const next = (res.data as BlockItemWithDetail) ?? null;
+      block.value = next;
+      const nextFetchedAt = next?.detail?.fetched_at ?? null;
+      if (nextFetchedAt && nextFetchedAt !== previousFetchedAt) {
+        stopPolling();
+        refreshState.value = 'success';
+        setTimeout(() => { refreshState.value = ''; }, 2000);
+        return;
+      }
+    };
+    await check();
+    pollTimer = setInterval(check, POLL_INTERVAL_MS);
   } catch (e: unknown) {
+    stopPolling();
     const ax = e as { response?: { status?: number }; message?: string };
     error.value = {
       status: ax.response?.status,
       message: ax.message ?? 'Ошибка загрузки',
     };
-  } finally {
-    refreshing.value = false;
+    refreshState.value = 'fail';
   }
 }
 
 onMounted(load);
+onUnmounted(stopPolling);
 watch(blockId, load);
 
 const detail = computed(() => block.value?.detail ?? null);
@@ -170,15 +207,21 @@ const pricesContent = computed(() => {
           </h1>
         </header>
 
-        <div v-if="!hasDetail" class="mb-6 rounded-xl border border-amber-800 bg-amber-950/30 p-4 text-amber-200">
-          <p class="mb-2">Данные обновляются.</p>
+        <div v-if="!hasDetail || refreshState" class="mb-6 rounded-xl border border-amber-800 bg-amber-950/30 p-4 text-amber-200">
+          <p class="mb-2">
+            <template v-if="refreshState === 'queued'">В очереди…</template>
+            <template v-else-if="refreshState === 'loading'">Обновление…</template>
+            <template v-else-if="refreshState === 'success'">Готово.</template>
+            <template v-else-if="refreshState === 'fail'">Обновление не пришло вовремя или ошибка.</template>
+            <template v-else-if="!hasDetail">Данные обновляются.</template>
+          </p>
           <button
             type="button"
             class="rounded-lg border border-amber-600 bg-amber-900/50 px-4 py-2 text-sm hover:bg-amber-900/70 disabled:opacity-50"
-            :disabled="refreshing"
+            :disabled="refreshState === 'queued' || refreshState === 'loading'"
             @click="refresh"
           >
-            {{ refreshing ? 'Обновление…' : 'Обновить' }}
+            {{ refreshState === 'queued' || refreshState === 'loading' ? 'Ждём…' : 'Обновить' }}
           </button>
         </div>
 

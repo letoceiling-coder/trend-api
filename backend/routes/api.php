@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Ta\TaApartmentsController;
 use App\Http\Controllers\Api\Ta\TaBlocksController;
 use App\Http\Controllers\Api\Ta\TaDirectoriesController;
 use App\Http\Controllers\Api\Ta\TaUnitMeasurementsController;
+use App\Http\Controllers\Api\TaUi\TaUiRefreshController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -46,4 +47,15 @@ Route::prefix('ta')->group(function () {
         ->middleware('internal.key');
     Route::get('directories', [TaDirectoriesController::class, 'index']);
     Route::get('unit-measurements', [TaUnitMeasurementsController::class, 'index']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| TA-UI — frontend proxy for refresh (no X-Internal-Key)
+|--------------------------------------------------------------------------
+| Rate-limited. Same effect as POST /api/ta/.../refresh.
+*/
+Route::prefix('ta-ui')->middleware('throttle:10,1')->group(function () {
+    Route::post('blocks/{block_id}/refresh', [TaUiRefreshController::class, 'refreshBlock']);
+    Route::post('apartments/{apartment_id}/refresh', [TaUiRefreshController::class, 'refreshApartment']);
 });
