@@ -267,7 +267,12 @@ class DeployCommand extends Command
         $process->setTimeout(600);
         $process->run();
         if (! $process->isSuccessful()) {
-            $this->stepFail($process->getErrorOutput() ?: $process->getOutput());
+            $err = $process->getErrorOutput();
+            $out = $process->getOutput();
+            $full = trim($err) !== '' && trim($out) !== ''
+                ? $out . "\n--- stderr ---\n" . $err
+                : ($err ?: $out);
+            $this->stepFail($full);
             $this->line('  Command: ' . implode(' ', array_map(function ($c) {
                 return strlen($c) > 60 ? substr($c, 0, 60) . '...' : $c;
             }, $sshCmd)));
