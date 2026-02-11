@@ -46,50 +46,100 @@ php vendor/bin/phpunit -c phpunit.xml --filter TrendAuthServiceTest --testdox
 
 2. **MySQL тестовая БД** (отдельная БД, не production):
 ```bash
-# один раз: создать БД и накатить миграции (см. ниже)
-php vendor/bin/phpunit -c phpunit.mysql.xml --testdox
-php vendor/bin/phpunit -c phpunit.mysql.xml --filter TaApiTest --testdox
-php vendor/bin/phpunit -c phpunit.mysql.xml --filter TrendAuthServiceTest --testdox
+php artisan ta:test:mysql
 ```
+или `./scripts/test-mysql.sh`. Вручную: `./vendor/bin/phpunit -c phpunit.mysql.xml --testdox`.
 
 ### Тестовое окружение (в т.ч. на сервере)
 
-Тесты **не используют production БД**.
+Тесты **не используют production БД**. **phpunit.xml** — SQLite in-memory. **phpunit.mysql.xml** — MySQL (параметры из `.env.testing.mysql` при запуске через `ta:test:mysql`). **.env.testing.mysql** — в `.gitignore`; пароли не коммитить.
 
-- **phpunit.xml** — режим по умолчанию: `APP_ENV=testing`, `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`, плюс `CACHE_STORE=array`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=array`, `MAIL_MAILER=array`. Сборка идёт в SQLite in-memory.
-- **phpunit.mysql.xml** — режим MySQL: те же настройки окружения, но `DB_CONNECTION=mysql` и параметры БД (по умолчанию `trend_api_test`, хост/порт/логин/пароль заданы в конфиге; можно переопределить переменными окружения перед запуском).
-- **.env.testing** — шаблон для sqlite-тестов.
-- **.env.testing.mysql.example** — пример переменных для MySQL-тестов и для `migrate:fresh` по тестовой БД. Копия в `.env.testing.mysql` добавлена в `.gitignore`.
+Если с `-c phpunit.xml` подхватывается MySQL из `.env`, задайте `DB_CONNECTION=sqlite` и `DB_DATABASE=:memory:`.
 
-Если при запуске с `-c phpunit.xml` тесты подключаются к MySQL (например, из `.env`), задайте перед запуском:  
-`DB_CONNECTION=sqlite` и `DB_DATABASE=:memory:` (или используйте окружение без production DB_*).
+---
 
-#### Тестовая БД MySQL: создание и миграции
+### Запуск тестов MySQL на сервере
 
-1. Создать БД (не production):
+Один раз настроить, затем запускать одной командой.
+
+#### 1. Файл .env.testing.mysql
+
+Переменные для тестов берутся **только** из `backend/.env.testing.mysql` (не из `.env`).
+
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS trend_api_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+cd /var/www/trend-api/backend
+cp .env.testing.mysql.example .env.testing.mysql
 ```
 
-2. Один раз накатить миграции (подставьте свои DB_* при необходимости):
+Заполните в `.env.testing.mysql`:
+- `DB_DATABASE=trend_api_test` (обязательно, иначе команда не запустится)
+- `DB_USERNAME` — пользователь MySQL для тестов
+- `DB_PASSWORD` — пароль (не коммитить; в консоль и логи не выводится)
+- **`DB_HOST=127.0.0.1`** — рекомендуется вместо `localhost` (избегаем сокет-авторизации)
+
+Остальные переменные (APP_KEY, CACHE_STORE, QUEUE_CONNECTION и т.д.) можно оставить из примера.
+
+#### 2. Инициализация тестовой БД и пользователя (init)
+
+Команда подключается к MySQL по **DB_HOST** и **DB_PORT** из `.env.testing.mysql`. Если подключение не удаётся (нет DB_INIT_* или ошибка соединения) — выводит SQL для ручного выполнения (не падает с ошибкой).
+
+**Права по умолчанию — только localhost/127.0.0.1:** создаются пользователи `user@'localhost'` и при `DB_HOST=127.0.0.1` также `user@'127.0.0.1'`. **GRANT для `user@'%'` по умолчанию не выдаётся** (безопаснее). Удалённый доступ включается явно:
+- в `.env.testing.mysql`: **`DB_ALLOW_REMOTE=true`**, или
+- флаг команды: **`--allow-remote`**
+
+Рекомендуется **DB_HOST=127.0.0.1** (не `localhost`).
+
+**Вариант A — только вывести SQL:**
 ```bash
-cd /path/to/backend
-APP_ENV=testing DB_CONNECTION=mysql DB_DATABASE=trend_api_test DB_USERNAME=root DB_PASSWORD= php artisan migrate:fresh --force
+php artisan ta:test:mysql:init
 ```
-Либо скопируйте `.env.testing.mysql.example` в `.env.testing.mysql`, задайте там `DB_*`, затем:
+Выведет инструкцию и блок SQL под текущий DB_HOST. Только сырой SQL:
 ```bash
-# Linux/macOS (загрузить .env.testing.mysql в текущую оболочку и выполнить migrate)
-set -a; source .env.testing.mysql; set +a; php artisan migrate:fresh --force
+php artisan ta:test:mysql:init --show-sql
 ```
 
-3. Запуск тестов по MySQL:
+**Вариант B — автоматическое создание** (если заданы `DB_INIT_USERNAME` и при необходимости `DB_INIT_PASSWORD` в `.env.testing.mysql`):
 ```bash
-php vendor/bin/phpunit -c phpunit.mysql.xml --testdox
+php artisan ta:test:mysql:init
+```
+Создаются база `trend_api_test`, пользователь и GRANT только для localhost/127.0.0.1 (и для `%` при `DB_ALLOW_REMOTE=true` или `--allow-remote`). Пароли в консоль и логи не выводятся.
+
+#### 3. Запуск тестов одной командой
+
+```bash
+cd /var/www/trend-api/backend
+php artisan ta:test:mysql
 ```
 
-Учётные данные по умолчанию в `phpunit.mysql.xml`: `DB_DATABASE=trend_api_test`, `DB_USERNAME=root`, `DB_PASSWORD=` (пустой). Чтобы использовать другие — задайте переменные окружения перед вызовом phpunit или отредактируйте `phpunit.mysql.xml` локально (не коммитить секреты).
+Команда:
+- проверяет наличие `.env.testing.mysql` (если нет — выводит инструкцию и exit 1);
+- читает переменные только из этого файла;
+- проверяет safety: `DB_DATABASE` должен быть ровно `trend_api_test` (иначе exit 1);
+- проверяет подключение к MySQL;
+- выполняет `migrate:fresh --force` в тестовой БД;
+- запускает `./vendor/bin/phpunit -c phpunit.mysql.xml --testdox`.
 
-**Миграции и MySQL:** в миграциях для таблиц `ta_sync_runs` и `ta_payload_cache` составные индексы на MySQL создаются с префиксами полей (ограничение длины ключа InnoDB). На SQLite используются обычные составные индексы. `migrate:fresh` и тесты с RefreshDatabase поддерживают и SQLite, и MySQL.
+**Альтернатива — bash-скрипт:**
+```bash
+./scripts/test-mysql.sh
+```
+
+#### 4. Ручной запуск PHPUnit по MySQL
+
+Если БД и миграции уже готовы:
+```bash
+./vendor/bin/phpunit -c phpunit.mysql.xml --testdox
+```
+Учётные данные — из окружения или из `phpunit.mysql.xml` (по умолчанию trend_api_test / root / пустой пароль).
+
+#### 5. Меры безопасности
+
+- **Блокировка по имени БД:** команда `ta:test:mysql` не запустится, если в `.env.testing.mysql` указано `DB_DATABASE` отличное от `trend_api_test`.
+- **Отдельный конфиг:** используется только `.env.testing.mysql`, production `.env` не подмешивается.
+- **Пароли:** `DB_PASSWORD` и `DB_INIT_PASSWORD` нигде не выводятся в консоль и не пишутся в логи.
+- **APP_ENV:** если в загруженном окружении `APP_ENV` не `testing`, выводится предупреждение (не блокировка); PHPUnit сам выставляет `APP_ENV=testing` через `phpunit.mysql.xml`.
+
+**Миграции и MySQL:** для таблиц `ta_sync_runs` и `ta_payload_cache` на MySQL используются индексы с префиксами полей (лимит длины ключа InnoDB).
 
 ---
 
