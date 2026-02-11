@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_payload_cache')) {
+            return;
+        }
         Schema::create('ta_payload_cache', function (Blueprint $table) {
             $table->id();
             $table->string('provider', 50)->default('trendagent');

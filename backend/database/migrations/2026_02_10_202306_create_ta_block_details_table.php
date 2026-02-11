@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_block_details')) {
+            return;
+        }
         Schema::create('ta_block_details', function (Blueprint $table) {
             $table->id();
             $table->string('block_id', 32)->unique(); // FK-like to ta_blocks.block_id

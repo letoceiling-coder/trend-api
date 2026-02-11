@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_blocks')) {
+            return;
+        }
         Schema::create('ta_blocks', function (Blueprint $table) {
             $table->id(); // Internal auto-increment ID
             $table->string('block_id', 32)->unique(); // Real block ID from TrendAgent

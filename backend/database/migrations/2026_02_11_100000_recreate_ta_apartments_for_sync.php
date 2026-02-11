@@ -12,8 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('ta_apartments');
-
+        if (Schema::hasTable('ta_apartments')) {
+            return;
+        }
         Schema::create('ta_apartments', function (Blueprint $table) {
             $table->id();
             $table->string('apartment_id', 64);

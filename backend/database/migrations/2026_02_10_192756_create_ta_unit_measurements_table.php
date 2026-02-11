@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_unit_measurements')) {
+            return;
+        }
         Schema::create('ta_unit_measurements', function (Blueprint $table) {
             $table->string('id', 50)->primary(); // External ID from API
             $table->string('name')->nullable();

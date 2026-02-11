@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('ta_sync_runs')) {
+            return;
+        }
         Schema::create('ta_sync_runs', function (Blueprint $table) {
             $table->id();
             $table->string('provider', 50)->default('trendagent');
