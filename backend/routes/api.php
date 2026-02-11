@@ -4,6 +4,11 @@ use App\Http\Controllers\Api\Ta\TaApartmentsController;
 use App\Http\Controllers\Api\Ta\TaBlocksController;
 use App\Http\Controllers\Api\Ta\TaDirectoriesController;
 use App\Http\Controllers\Api\Ta\TaUnitMeasurementsController;
+use App\Http\Controllers\Api\TaAdmin\ContractChangesController;
+use App\Http\Controllers\Api\TaAdmin\HealthController;
+use App\Http\Controllers\Api\TaAdmin\PipelineController;
+use App\Http\Controllers\Api\TaAdmin\QualityChecksController;
+use App\Http\Controllers\Api\TaAdmin\SyncRunsController;
 use App\Http\Controllers\Api\TaUi\TaUiRefreshController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -47,6 +52,19 @@ Route::prefix('ta')->group(function () {
         ->middleware('internal.key');
     Route::get('directories', [TaDirectoriesController::class, 'index']);
     Route::get('unit-measurements', [TaUnitMeasurementsController::class, 'index']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | TA Admin — monitoring, pipeline (X-Internal-Key required)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('admin')->middleware('internal.key')->group(function () {
+        Route::get('sync-runs', [SyncRunsController::class, 'index']);
+        Route::get('contract-changes', [ContractChangesController::class, 'index']);
+        Route::get('quality-checks', [QualityChecksController::class, 'index']);
+        Route::get('health', [HealthController::class, 'index']);
+        Route::post('pipeline/run', [PipelineController::class, 'run']);
+    });
 });
 
 /*

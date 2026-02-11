@@ -62,22 +62,24 @@ php artisan ta:test:mysql
 
 Один раз настроить, затем запускать одной командой.
 
+**Кратко:** создать конфиг вручную (`cp .env.testing.mysql.example .env.testing.mysql` и заполнить) **или** выполнить `php artisan ta:test:mysql:setup` → затем `php artisan ta:test:mysql:init` → затем `php artisan ta:test:mysql`.
+
 #### 1. Файл .env.testing.mysql
 
 Переменные для тестов берутся **только** из `backend/.env.testing.mysql` (не из `.env`).
 
+**Вариант A — интерактивная настройка (рекомендуется на сервере):**
 ```bash
 cd /var/www/trend-api/backend
+php artisan ta:test:mysql:setup
+```
+Скопирует example → `.env.testing.mysql` и запросит DB_HOST (по умолчанию 127.0.0.1), DB_PORT (3306), DB_USERNAME, DB_PASSWORD (ввод скрыт). Пароль не выводится в консоль и не логируется.
+
+**Вариант B — вручную:**
+```bash
 cp .env.testing.mysql.example .env.testing.mysql
 ```
-
-Заполните в `.env.testing.mysql`:
-- `DB_DATABASE=trend_api_test` (обязательно, иначе команда не запустится)
-- `DB_USERNAME` — пользователь MySQL для тестов
-- `DB_PASSWORD` — пароль (не коммитить; в консоль и логи не выводится)
-- **`DB_HOST=127.0.0.1`** — рекомендуется вместо `localhost` (избегаем сокет-авторизации)
-
-Остальные переменные (APP_KEY, CACHE_STORE, QUEUE_CONNECTION и т.д.) можно оставить из примера.
+Заполните в `.env.testing.mysql`: `DB_DATABASE=trend_api_test`, `DB_USERNAME`, `DB_PASSWORD`, `DB_HOST=127.0.0.1` (рекомендуется).
 
 #### 2. Инициализация тестовой БД и пользователя (init)
 
@@ -151,12 +153,9 @@ php artisan ta:test:mysql
 
 **Формат ответа везде единый:** строго `{ "data", "meta" }`.
 
-- **data** — для списков (blocks, apartments, unit-measurements) массив объектов; для одного ресурса (show, directories) — один объект.
-- **meta** — объект. Для списков всегда есть `meta.pagination` с полями:
-  - **total** — общее число записей по фильтрам;
-  - **count** — число записей в текущей выборке;
-  - **offset** — смещение (offset), с которого взята выборка.
-- Для единичного ресурса (show по block_id/apartment_id, directories) в `meta` передаётся пустой объект `{}` (без pagination).
+- **data** — для списков (blocks, apartments) массив **нормализованных** объектов; для одного ресурса (show) — **нормализованный** объект (см. ниже RAW vs normalized).
+- **meta** — объект. Для списков всегда есть `meta.pagination`. Для show по block_id/apartment_id — **meta.source**: `fetched_at`, `payload_hash`.
+- **RAW** в ответе не отдаётся, кроме режима отладки (см. ниже).
 
 **Пример ответа списка (index):**
 
@@ -173,22 +172,50 @@ php artisan ta:test:mysql
 }
 ```
 
-**Пример ответа show (блок/квартира):** при наличии записи в `ta_block_details` / `ta_apartment_details` в `data` подмешивается ключ **detail**:
+**Пример ответа show (блок/квартира):** при наличии записи в `ta_block_details` / `ta_apartment_details` в `data` подмешивается ключ **detail**. В **meta.source** — `fetched_at` и `payload_hash`:
 
 ```json
 {
   "data": {
     "block_id": "abc",
     "title": "...",
-    "detail": {
-      "block_id": "abc",
-      "unified_payload": { ... },
-      "fetched_at": "..."
-    }
+    "detail": { "unified": { ... }, "advantages": [...] }
   },
-  "meta": {}
+  "meta": {
+    "source": {
+      "fetched_at": "2026-02-11T12:00:00+00:00",
+      "payload_hash": "a1b2c3..."
+    }
+  }
 }
 ```
+
+#### RAW и нормализованные данные
+
+- **Normalized** — предсказуемая структура (скаляры, числа, координаты, цены, статус). API всегда возвращает **data** в нормализованном виде (колонка `normalized` в ta_blocks / ta_apartments / ta_block_details / ta_apartment_details). Если нормализация не удалась, используется fallback из полей модели.
+- **RAW** — сырой ответ внешнего API (100% как пришло). Хранится в `ta_payload_cache` (scope, external_id, endpoint, http_status, payload, payload_hash, fetched_at) и в полях `raw` сущностей. В ответ API **RAW не входит**, кроме режима отладки.
+
+**Режим отладки (RAW в ответе):** в `data` ключ **raw** возвращается только при **одновременном** выполнении:
+- в запросе передан `?debug=1`;
+- заголовок **X-Internal-Key** совпадает со значением `INTERNAL_API_KEY` в конфиге.
+
+Без валидного ключа параметр `debug` игнорируется (RAW не отдаётся). Это исключает утечку сырых payload без авторизации.
+
+**Безопасность:** пароли и токены в логах и ответах не выводятся; в кэше и контексте ошибок используется маскирование. В payload_cache сохраняются только ответы API без auth_token/секретов.
+
+**Проверка payload_cache:** при `storeRaw=true` все запросы к TrendAgent (sync/probe) пишут в `ta_payload_cache`: scope, external_id, endpoint, http_status, payload, **payload_hash** (sha256 от канонического JSON), fetched_at. По `payload_hash` можно сверять идентичность ответов. Детали: **Contract Change Alerts** (таблицы `ta_contract_state`, `ta_contract_changes`; команды `ta:contract:check`, `ta:contract:last`) и **Data Quality** (`ta_data_quality_checks`; команды `ta:quality:check`, `ta:quality:summary`) — см. `docs/trendagent/STATUS.md`.
+
+### Admin monitoring и pipeline
+
+Эндпоинты **/api/ta/admin/** требуют заголовок **X-Internal-Key** (значение из `INTERNAL_API_KEY`). Без ключа — 401.
+
+- **GET /api/ta/admin/sync-runs** — последние sync runs (параметры: scope, status, since_hours, limit).
+- **GET /api/ta/admin/contract-changes** — изменения контракта API.
+- **GET /api/ta/admin/quality-checks** — результаты проверок качества данных.
+- **GET /api/ta/admin/health** — сводка: последний успешный sync по scope, счётчики изменений контракта и fail по качеству за 24 ч, информация об очереди.
+- **POST /api/ta/admin/pipeline/run** — «one-shot» заполнение данных под фронт: синхронный или асинхронный запуск sync blocks + apartments и при необходимости detail jobs (тело JSON: city_id, lang, blocks_count, blocks_pages, apartments_pages, dispatch_details, detail_limit).
+
+Подробнее и примеры curl — в `docs/trendagent/STAGE_2_MONITORING_PIPELINE_REPORT.md` и `docs/trendagent/STATUS.md`.
 
 ### Эндпоинты
 

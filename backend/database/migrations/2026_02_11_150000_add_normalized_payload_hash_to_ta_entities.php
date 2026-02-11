@@ -1,0 +1,47 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('ta_blocks', function (Blueprint $table) {
+            $table->json('normalized')->nullable()->after('raw');
+            $table->string('payload_hash', 64)->nullable()->after('normalized');
+        });
+
+        Schema::table('ta_apartments', function (Blueprint $table) {
+            $table->json('normalized')->nullable()->after('raw');
+            $table->string('payload_hash', 64)->nullable()->after('normalized');
+        });
+
+        Schema::table('ta_block_details', function (Blueprint $table) {
+            $table->json('normalized')->nullable()->after('apartments_min_price_payload');
+            $table->string('payload_hash', 64)->nullable()->after('normalized');
+        });
+
+        Schema::table('ta_apartment_details', function (Blueprint $table) {
+            $table->json('normalized')->nullable()->after('prices_graph_payload');
+            $table->string('payload_hash', 64)->nullable()->after('normalized');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('ta_blocks', function (Blueprint $table) {
+            $table->dropColumn(['normalized', 'payload_hash']);
+        });
+        Schema::table('ta_apartments', function (Blueprint $table) {
+            $table->dropColumn(['normalized', 'payload_hash']);
+        });
+        Schema::table('ta_block_details', function (Blueprint $table) {
+            $table->dropColumn(['normalized', 'payload_hash']);
+        });
+        Schema::table('ta_apartment_details', function (Blueprint $table) {
+            $table->dropColumn(['normalized', 'payload_hash']);
+        });
+    }
+};
