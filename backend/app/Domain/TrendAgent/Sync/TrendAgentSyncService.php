@@ -5,6 +5,7 @@ namespace App\Domain\TrendAgent\Sync;
 use App\Domain\TrendAgent\Sync\SyncRunner;
 use App\Integrations\TrendAgent\Http\TrendHttpClient;
 use App\Models\Domain\TrendAgent\TaApartment;
+use App\Models\Domain\TrendAgent\TaApartmentDetail;
 use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaBlockDetail;
 use App\Models\Domain\TrendAgent\TaDirectory;
@@ -787,6 +788,137 @@ class TrendAgentSyncService
         TaPayloadCache::create([
             'provider' => 'trendagent',
             'scope' => 'block_detail',
+            'external_id' => $externalId,
+            'city_id' => $cityId,
+            'lang' => $lang,
+            'payload' => json_encode($payload),
+            'fetched_at' => now(),
+        ]);
+    }
+
+    /**
+     * Sync apartment detail (unified + optional prices_totals, prices_graph)
+     *
+     * @return array{run: TaSyncRun, endpoints_ok: int, endpoints_failed: int}
+     */
+    public function syncApartmentDetail(string $apartmentId, ?string $cityId = null, ?string $lang = null, bool $storeRawPayload = true): array
+    {
+        $cityId = $cityId ?? Config::get('trendagent.default_city_id');
+        $lang = $lang ?? Config::get('trendagent.default_lang', 'ru');
+
+        if (! $cityId) {
+            throw new RuntimeException('City ID is required for syncApartmentDetail');
+        }
+
+        $run = $this->syncRunner->startRun('apartment_detail:' . $apartmentId, $cityId, $lang);
+
+        try {
+            $coreApi = config('trendagent.api.core', 'https://api.trendagent.ru');
+            $baseUrl = rtrim($coreApi, '/');
+
+            $endpoints = [
+                'unified' => [
+                    'path' => "/v4_29/apartments/{$apartmentId}/unified/",
+                    'query' => [],
+                    'required' => true,
+                    'payload_key' => 'unified_payload',
+                ],
+                'prices_totals' => [
+                    'path' => "/v4_29/prices/apartment/{$apartmentId}/totals",
+                    'query' => [],
+                    'required' => false,
+                    'payload_key' => 'prices_totals_payload',
+                ],
+                'prices_graph' => [
+                    'path' => "/v4_29/prices/apartment/{$apartmentId}/graph",
+                    'query' => [],
+                    'required' => false,
+                    'payload_key' => 'prices_graph_payload',
+                ],
+            ];
+
+            $payloads = [];
+            $endpointsOk = 0;
+            $endpointsFailed = 0;
+
+            foreach ($endpoints as $key => $config) {
+                $url = $baseUrl . $config['path'];
+                $queryParams = array_merge($config['query'], ['city' => $cityId, 'lang' => $lang]);
+
+                try {
+                    $response = $this->http->get($url, $queryParams);
+
+                    if ($response->status() >= 200 && $response->status() < 300) {
+                        $payloads[$config['payload_key']] = $response->json();
+                        $endpointsOk++;
+
+                        if ($storeRawPayload) {
+                            $this->saveApartmentDetailPayloadToCache($apartmentId, $key, $response->json(), $url, $cityId, $lang);
+                        }
+                    } else {
+                        $endpointsFailed++;
+                        if ($config['required']) {
+                            throw new RuntimeException("Required endpoint {$key} failed with status {$response->status()}");
+                        }
+                    }
+                } catch (Throwable $e) {
+                    $endpointsFailed++;
+                    if ($config['required']) {
+                        throw $e;
+                    }
+                }
+            }
+
+            DB::transaction(function () use ($apartmentId, $cityId, $lang, $payloads) {
+                TaApartmentDetail::updateOrCreate(
+                    [
+                        'apartment_id' => $apartmentId,
+                        'city_id' => $cityId,
+                        'lang' => $lang,
+                    ],
+                    array_merge($payloads, ['fetched_at' => now()])
+                );
+            });
+
+            $this->syncRunner->finishSuccess($run, $endpointsOk, 1);
+
+            return [
+                'run' => $run->fresh(),
+                'endpoints_ok' => $endpointsOk,
+                'endpoints_failed' => $endpointsFailed,
+            ];
+        } catch (Throwable $e) {
+            $this->syncRunner->finishFail($run, $e, [
+                'apartment_id' => $apartmentId,
+                'city_id' => $cityId,
+                'lang' => $lang,
+            ]);
+
+            return [
+                'run' => $run->fresh(),
+                'endpoints_ok' => 0,
+                'endpoints_failed' => 3,
+            ];
+        }
+    }
+
+    protected function saveApartmentDetailPayloadToCache(string $apartmentId, string $key, mixed $data, string $url, string $cityId, string $lang): void
+    {
+        $externalId = $apartmentId . ':' . $key;
+
+        $payload = [
+            '_meta' => [
+                'endpoint' => $key,
+                'url' => $url,
+                'received_at' => now()->toIso8601String(),
+                'top_level_keys' => is_array($data) ? array_keys($data) : [],
+            ],
+            'response' => $data,
+        ];
+
+        TaPayloadCache::create([
+            'provider' => 'trendagent',
+            'scope' => 'sync_apartment_detail',
             'external_id' => $externalId,
             'city_id' => $cityId,
             'lang' => $lang,

@@ -82,6 +82,7 @@ php artisan trendagent:auth:check
 | `php artisan trendagent:sync:blocks [--show-type=list] [--count=20] [--max-pages=50] [--city=...] [--lang=ru] [--no-raw]` | Синхронизация blocks из core API (`/v4_29/blocks/search`). Параметры: `--show-type` (list/map/plans), `--count` (items per page), `--max-pages` (защита от бесконечности). Использует **shape detector** для определения структуры ответа (поддерживает `items`, `data.items`, `result.items` и др.). Сохраняет в `ta_blocks` через upsert по `block_id`. Pagination: offset увеличивается автоматически до достижения конца или `--max-pages`. |
 | `php artisan trendagent:sync:block-detail {block_id} [--city=...] [--lang=ru] [--no-raw]` | Синхронизация детальной информации об объекте (6 endpoints) в `ta_block_details`: unified (required), advantages, nearby_places, bank, geo_buildings, apartments_min_price (optional). Если unified endpoint не отвечает — sync run помечается как failed. Остальные endpoints опциональны: их ошибки не прерывают синхронизацию. Upsert по (block_id, city_id, lang). Raw payload каждого endpoint сохраняется отдельно в `ta_payload_cache` (scope='block_detail'). |
 | `php artisan trendagent:sync:apartments [--count=50] [--max-pages=20] [--city=...] [--lang=ru] [--sort=price] [--sort-order=asc] [--no-raw]` | Синхронизация квартир из core API (`/v4_29/apartments/search/`). Пагинация по offset. Shape detector для массива квартир (data.results, data.items, items, apartments и др.). Upsert по (apartment_id, city_id). Raw в ta_apartments.raw и в ta_payload_cache (scope='apartments_search_page') отключаются флагом `--no-raw`. TaSyncRun scope='apartments_search'. |
+| `php artisan trendagent:sync:apartment-detail {apartment_id} [--city=...] [--lang=ru] [--no-raw]` | Синхронизация детальной информации о квартире в `ta_apartment_details`: unified (required), prices_totals, prices_graph (optional). При не-200 на unified — sync failed. 404 на prices не прерывает sync. Upsert по (apartment_id, city_id, lang). Raw cache scope='sync_apartment_detail' при отсутствии `--no-raw`. TaSyncRun scope='apartment_detail:{id}'. |
 
 ### Пример использования
 
@@ -122,6 +123,7 @@ php artisan trendagent:sync:unit-measurements --no-raw
 |---------|----------|
 | `php artisan trendagent:probe:blocks-search [--show-type=list] [--count=20] [--offset=0] [--method=auto] [--save-raw] [--dump-keys] -vvv` | Диагностика `/v4_29/blocks/search`. Режим `--method=auto` пробует GET, затем POST (если GET не сработал). Сохраняет raw responses в `ta_payload_cache` (scope='probe_blocks_search') с метаданными (_meta: method, url, status, query, body, top_level_keys, items_found). Использует shape detector. Токены маскируются везде. Выводит: status, duration, top-level keys, items_found, items_count, preview (если нет items). |
 | `php artisan trendagent:probe:apartments-search [--count=50] [--offset=0] [--sort=price] [--sort-order=asc] [--city=...] [--lang=ru] [--save-raw] [--dump-keys] -vvv` | Диагностика `/v4_29/apartments/search/`. Пробует GET, при неуспехе — POST с JSON body. Выводит status, duration_ms, top_level_keys, items_found, items_count; при отсутствии items — preview тела (токены маскируются). Сохраняет в `ta_payload_cache` (scope='probe_apartments_search', external_id="{method}:{offset}:{count}:{sort}:{sort_order}") с _meta и response. |
+| `php artisan trendagent:probe:apartment-detail {apartment_id} [--city=...] [--lang=ru] [--save-raw] [--dump-keys] -vvv` | Диагностика endpoints детальной страницы квартиры: `/v4_29/apartments/{id}/unified/`, `/v4_29/prices/apartment/{id}/totals`, `/v4_29/prices/apartment/{id}/graph`. Выводит status, duration_ms, top-level keys; при --dump-keys — ключи data (1 уровень). Сохраняет в `ta_payload_cache` (scope='probe_apartment_detail', external_id='{apartment_id}:{endpoint_name}'). Summary: ok/failed. |
 
 ### Результаты probe (2026-02-10)
 
@@ -138,6 +140,9 @@ php artisan trendagent:sync:unit-measurements --no-raw
 - **Query params**: city, lang, auth_token (для всех)
 
 **Endpoint**: `/v4_29/apartments/search/` (квартиры)
-- Метод и структура ответа определяются командой `trendagent:probe:apartments-search --save-raw`. Shape detector поддерживает data.results, data.items, items, apartments и др.
+- Метод и структура ответа определяются командой `trendagent:probe:apartments-search --save-raw`. Shape detector поддерживает data.list, data.results, data.items, items, apartments и др.
 
-Детали зафиксированы в `docs/trendagent/network/core-api.md` (разделы 1.1, 3, 4).
+**Endpoints**: детали квартиры (apartment detail)
+- `/v4_29/apartments/{id}/unified/` (required), `/v4_29/prices/apartment/{id}/totals`, `/v4_29/prices/apartment/{id}/graph` (optional, 404 допустим). Контракт фиксируется `trendagent:probe:apartment-detail --save-raw`.
+
+Детали зафиксированы в `docs/trendagent/network/core-api.md` (разделы 1.1, 3, 4, 5).

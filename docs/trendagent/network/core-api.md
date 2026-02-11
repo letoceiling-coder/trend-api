@@ -204,7 +204,26 @@ GET https://api.trendagent.ru/v4_29/blocks/{BLOCK_ID}/geo/buildings
 
 ---
 
-### 5. Справочники и единицы измерения
+### 5. Детали квартиры (apartment detail)
+
+- **UI‑страницы**: детальная страница квартиры (карточка квартиры).
+- **Endpoints (проверяются probe:apartment-detail)**:
+
+```http
+GET https://api.trendagent.ru/v4_29/apartments/{APARTMENT_ID}/unified/
+GET https://api.trendagent.ru/v4_29/prices/apartment/{APARTMENT_ID}/totals
+GET https://api.trendagent.ru/v4_29/prices/apartment/{APARTMENT_ID}/graph
+```
+
+- **Query params**: `city={CITY_ID}`, `lang=ru`, `auth_token` (добавляется TrendHttpClient).
+- **Контракт**:
+  - `/unified/` — обязательный (required). При не-200 sync считается failed.
+  - `/prices/apartment/{id}/totals` и `/graph` — опциональные. 404 не прерывает sync, в БД сохраняются как null.
+- **Сохранение**: `ta_apartment_details` (apartment_id, city_id, lang, unified_payload, prices_totals_payload, prices_graph_payload, fetched_at). Unique по (apartment_id, city_id, lang).
+
+---
+
+### 6. Справочники и единицы измерения
 
 - **UI‑использование**: подписи, единицы, статусы.
 
