@@ -31,7 +31,7 @@ class TrendAuthServiceTest extends TestCase
         $sso = Mockery::mock(TrendSsoClient::class);
         $sso->shouldReceive('getAuthToken')
             ->once()
-            ->with('refresh-123', 'city-1', 'ru')
+            ->with('refresh-123', 'city-1', 'ru', null)
             ->andReturn('token-123');
 
         $service = new TrendAuthService($sso);

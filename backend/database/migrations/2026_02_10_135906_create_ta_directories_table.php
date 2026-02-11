@@ -1,35 +1,20 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
+/**
+ * Legacy migration: ta_directories is created by 2026_02_10_192757_create_ta_directories_table.
+ * This migration is kept as no-op to preserve migration history.
+ */
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
-        Schema::create('ta_directories', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('city_id');
-            $table->string('domain', 100);
-            $table->string('dict_key', 150);
-            $table->json('data_json');
-            $table->string('hash', 64);
-            $table->timestamp('synced_at')->nullable();
-            $table->timestamps();
-
-            $table->index(['city_id', 'synced_at']);
-        });
+        // no-op: ta_directories created in 2026_02_10_192757_create_ta_directories_table
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('ta_directories');
+        // no-op
     }
 };

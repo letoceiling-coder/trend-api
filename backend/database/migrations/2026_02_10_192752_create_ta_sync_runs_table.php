@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -29,8 +30,15 @@ return new class extends Migration
             $table->json('error_context')->nullable();
             $table->timestamps();
 
-            $table->index(['provider', 'scope', 'city_id', 'lang', 'started_at']);
+            // SQLite: full composite index. MySQL: prefix index to stay under key length limit (767/3072).
+            if (Schema::getConnection()->getDriverName() !== 'mysql') {
+                $table->index(['provider', 'scope', 'city_id', 'lang', 'started_at']);
+            }
         });
+
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('CREATE INDEX ta_sync_runs_provider_scope_city_lang_started_index ON ta_sync_runs (provider(50), scope(50), city_id(50), lang(10), started_at)');
+        }
     }
 
     /**

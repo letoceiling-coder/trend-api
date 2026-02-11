@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Ta\IndexBlocksRequest;
 use App\Http\Resources\Ta\BlockDetailResource;
 use App\Http\Resources\Ta\BlockResource;
+use App\Jobs\TrendAgent\SyncBlockDetailJob;
 use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaBlockDetail;
 use Illuminate\Http\JsonResponse;

@@ -10,6 +10,7 @@ use App\Models\Domain\TrendAgent\TaDirectory;
 use App\Models\Domain\TrendAgent\TaUnitMeasurement;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class TaApiTest extends TestCase
@@ -221,6 +222,7 @@ class TaApiTest extends TestCase
 
     public function test_ta_blocks_refresh_returns_200_queued_true(): void
     {
+        Queue::fake();
         Config::set('internal.api_key', 'test-internal-key');
         TaBlock::create([
             'block_id' => 'block-refresh',

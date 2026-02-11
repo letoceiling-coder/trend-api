@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -26,8 +27,15 @@ return new class extends Migration
             $table->timestamp('fetched_at');
             $table->timestamps();
 
-            $table->index(['provider', 'scope', 'external_id', 'city_id', 'lang']);
+            // SQLite: full composite. MySQL: prefix index for key length limit.
+            if (Schema::getConnection()->getDriverName() !== 'mysql') {
+                $table->index(['provider', 'scope', 'external_id', 'city_id', 'lang']);
+            }
         });
+
+        if (Schema::getConnection()->getDriverName() === 'mysql') {
+            DB::statement('CREATE INDEX ta_payload_cache_provider_scope_ext_city_lang_index ON ta_payload_cache (provider(50), scope(50), external_id(50), city_id(50), lang(10))');
+        }
     }
 
     /**

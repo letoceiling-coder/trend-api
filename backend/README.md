@@ -35,11 +35,61 @@ composer install --no-dev
 composer install
 ```
 
-**Запуск тестов** (команды `php artisan test` в проекте нет, используется PHPUnit напрямую):
+**Запуск тестов** (команды `php artisan test` в проекте нет, используется PHPUnit напрямую). Два режима:
+
+1. **SQLite in-memory (по умолчанию, быстро):**
 ```bash
-php vendor/bin/phpunit --filter TrendAuthServiceTest
-php vendor/bin/phpunit --filter TaApiTest
+php vendor/bin/phpunit -c phpunit.xml --testdox
+php vendor/bin/phpunit -c phpunit.xml --filter TaApiTest --testdox
+php vendor/bin/phpunit -c phpunit.xml --filter TrendAuthServiceTest --testdox
 ```
+
+2. **MySQL тестовая БД** (отдельная БД, не production):
+```bash
+# один раз: создать БД и накатить миграции (см. ниже)
+php vendor/bin/phpunit -c phpunit.mysql.xml --testdox
+php vendor/bin/phpunit -c phpunit.mysql.xml --filter TaApiTest --testdox
+php vendor/bin/phpunit -c phpunit.mysql.xml --filter TrendAuthServiceTest --testdox
+```
+
+### Тестовое окружение (в т.ч. на сервере)
+
+Тесты **не используют production БД**.
+
+- **phpunit.xml** — режим по умолчанию: `APP_ENV=testing`, `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`, плюс `CACHE_STORE=array`, `QUEUE_CONNECTION=sync`, `SESSION_DRIVER=array`, `MAIL_MAILER=array`. Сборка идёт в SQLite in-memory.
+- **phpunit.mysql.xml** — режим MySQL: те же настройки окружения, но `DB_CONNECTION=mysql` и параметры БД (по умолчанию `trend_api_test`, хост/порт/логин/пароль заданы в конфиге; можно переопределить переменными окружения перед запуском).
+- **.env.testing** — шаблон для sqlite-тестов.
+- **.env.testing.mysql.example** — пример переменных для MySQL-тестов и для `migrate:fresh` по тестовой БД. Копия в `.env.testing.mysql` добавлена в `.gitignore`.
+
+Если при запуске с `-c phpunit.xml` тесты подключаются к MySQL (например, из `.env`), задайте перед запуском:  
+`DB_CONNECTION=sqlite` и `DB_DATABASE=:memory:` (или используйте окружение без production DB_*).
+
+#### Тестовая БД MySQL: создание и миграции
+
+1. Создать БД (не production):
+```bash
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS trend_api_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+2. Один раз накатить миграции (подставьте свои DB_* при необходимости):
+```bash
+cd /path/to/backend
+APP_ENV=testing DB_CONNECTION=mysql DB_DATABASE=trend_api_test DB_USERNAME=root DB_PASSWORD= php artisan migrate:fresh --force
+```
+Либо скопируйте `.env.testing.mysql.example` в `.env.testing.mysql`, задайте там `DB_*`, затем:
+```bash
+# Linux/macOS (загрузить .env.testing.mysql в текущую оболочку и выполнить migrate)
+set -a; source .env.testing.mysql; set +a; php artisan migrate:fresh --force
+```
+
+3. Запуск тестов по MySQL:
+```bash
+php vendor/bin/phpunit -c phpunit.mysql.xml --testdox
+```
+
+Учётные данные по умолчанию в `phpunit.mysql.xml`: `DB_DATABASE=trend_api_test`, `DB_USERNAME=root`, `DB_PASSWORD=` (пустой). Чтобы использовать другие — задайте переменные окружения перед вызовом phpunit или отредактируйте `phpunit.mysql.xml` локально (не коммитить секреты).
+
+**Миграции и MySQL:** в миграциях для таблиц `ta_sync_runs` и `ta_payload_cache` составные индексы на MySQL создаются с префиксами полей (ограничение длины ключа InnoDB). На SQLite используются обычные составные индексы. `migrate:fresh` и тесты с RefreshDatabase поддерживают и SQLite, и MySQL.
 
 ---
 
