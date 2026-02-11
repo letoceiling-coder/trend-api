@@ -97,6 +97,21 @@ export interface ApartmentItem {
   fetched_at?: string;
 }
 
+/** Apartment detail from ta_apartment_details (unified, prices_totals, prices_graph) */
+export interface ApartmentDetailPayload {
+  apartment_id?: string;
+  city_id?: string;
+  lang?: string;
+  unified_payload?: Record<string, unknown>;
+  prices_totals_payload?: unknown;
+  prices_graph_payload?: unknown;
+  fetched_at?: string;
+}
+
+export interface ApartmentItemWithDetail extends ApartmentItem {
+  detail?: ApartmentDetailPayload;
+}
+
 export async function getApartments(params?: {
   city_id?: string;
   lang?: string;
