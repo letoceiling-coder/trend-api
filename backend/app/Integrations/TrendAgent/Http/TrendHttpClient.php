@@ -87,7 +87,7 @@ class TrendHttpClient
      */
     private function performGet(string $url, array $query, string $cityId, string $lang): Response
     {
-        $authToken = $this->auth->getAuthToken($cityId, $lang);
+        $authToken = $this->auth->ensureAuthenticated($cityId, $lang);
 
         $finalQuery = array_merge($query, [
             'city'       => $cityId,
@@ -106,7 +106,7 @@ class TrendHttpClient
      */
     private function performPostJson(string $url, array $query, array $body, string $cityId, string $lang): Response
     {
-        $authToken = $this->auth->getAuthToken($cityId, $lang);
+        $authToken = $this->auth->ensureAuthenticated($cityId, $lang);
 
         $finalQuery = array_merge($query, [
             'city'       => $cityId,

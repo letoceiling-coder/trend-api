@@ -192,6 +192,28 @@ GET https://sso-api.trend.tech/v1/auth_token/
 - `refresh_token.payload.app_id (jwt)` — извлечённый из JWT
 - `chosenAppId used` — итоговый выбранный для запроса
 
+### 5.5. Self-healing: ensureAuthenticated и TRENDAGENT_AUTO_RELOGIN
+
+**Цель:** при отсутствии или отклонении сессии (session_not_found, refresh rejected) автоматически выполнить один programmatic login и повторить получение auth_token, чтобы sync/probe продолжали работать без ручного вмешательства.
+
+**Поведение:**
+
+1. **TrendAuthService::ensureAuthenticated(cityId, lang)**  
+   Сначала вызывается `getAuthToken(cityId, lang)`. Если выбрасывается `TrendAgentNotAuthenticatedException` (нет сессии, нет refresh_token или SSO отклонил refresh):
+   - при **TRENDAGENT_AUTO_RELOGIN=false** (по умолчанию) — исключение пробрасывается дальше;
+   - при **TRENDAGENT_AUTO_RELOGIN=true** — выполняется один вызов `loginAndStoreSession(phone, password, lang)` с учётом `TRENDAGENT_DEFAULT_PHONE` и `TRENDAGENT_DEFAULT_PASSWORD`, затем сброс кеша auth_token и повторный вызов `getAuthToken`. Циклов нет: максимум один авто-ре-логин на один вызов `ensureAuthenticated`.
+
+2. **TrendHttpClient** использует **ensureAuthenticated** (а не getAuthToken) при формировании запросов к API. Все команды sync и probe получают auth_token через этот слой, поэтому при включённом auto-relogin могут «самовосстановиться» после истечения/потери сессии.
+
+3. **Безопасность:** в логах и сообщениях об ошибках не выводятся токены и пароль; телефон в логах маскируется (например, `790***34`).
+
+**Переменные окружения:**
+
+- `TRENDAGENT_AUTO_RELOGIN` — `true` | `false` (по умолчанию `false`). Включение само-восстановления сессии через programmatic login.
+- `TRENDAGENT_DEFAULT_PHONE` — телефон для автоматического логина (обязателен при AUTO_RELOGIN=true).
+- `TRENDAGENT_DEFAULT_PASSWORD` — пароль для автоматического логина (обязателен при AUTO_RELOGIN=true).
+- `TRENDAGENT_DEFAULT_LANG` — язык (по умолчанию `ru`).
+
 ---
 
 ## 6. Роли слоёв: Vue vs Laravel

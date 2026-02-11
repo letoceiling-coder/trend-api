@@ -29,8 +29,9 @@
 - `TRENDAGENT_SSO_VERIFY` — проверка SSL (true/false; по умолчанию true).
 - `TRENDAGENT_APP_ID` — app_id (опционально; иначе из страницы логина).
 - `TRENDAGENT_APP_ID_ALTERNATIVE` — альтернативный app_id при 403 (по умолчанию 66d84f584c0168b8ccd281c3 из AL).
-- `TRENDAGENT_DEFAULT_PHONE`, `TRENDAGENT_DEFAULT_PASSWORD` — для команды login.
+- `TRENDAGENT_DEFAULT_PHONE`, `TRENDAGENT_DEFAULT_PASSWORD` — для команды login и для auto-relogin (если включён).
 - `TRENDAGENT_DEFAULT_LANG` — язык (по умолчанию ru).
+- `TRENDAGENT_AUTO_RELOGIN` — `true` | `false` (по умолчанию false). Self-healing: при отсутствии/отклонении сессии один раз выполнить programmatic login и повторить получение auth_token. Все sync/probe запросы идут через ensureAuthenticated, поэтому при true могут восстанавливаться без ручного auth:login.
 
 ### Проверка на сервере
 
@@ -50,7 +51,7 @@ php artisan trendagent:auth:check
 # AUTH TOKEN INVALID — API вернул 401/403; перелогиниться или обновить refresh_token.
 ```
 
-Требуется `TRENDAGENT_DEFAULT_CITY_ID` в .env (для check используется при запросе к API).
+Требуется `TRENDAGENT_DEFAULT_CITY_ID` в .env (для check используется при запросе к API). При включённом `TRENDAGENT_AUTO_RELOGIN=true` для само-восстановления также нужны `TRENDAGENT_DEFAULT_PHONE` и `TRENDAGENT_DEFAULT_PASSWORD`; в логах телефон маскируется, токены и пароль не выводятся.
 
 Если 403 при логине сохраняется: проверить `TRENDAGENT_APP_ID` / `TRENDAGENT_APP_ID_ALTERNATIVE`, при проблемах TLS временно `TRENDAGENT_SSO_VERIFY=false` (только для диагностики).
 

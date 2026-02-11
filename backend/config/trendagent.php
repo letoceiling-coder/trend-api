@@ -64,6 +64,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Auto relogin on auth failure (self-healing)
+    |--------------------------------------------------------------------------
+    | When true, if getAuthToken fails (no session / refresh rejected), attempt
+    | programmatic login via TRENDAGENT_DEFAULT_PHONE/PASSWORD and retry once.
+    | No infinite loops: at most one auto-relogin per ensureAuthenticated call.
+    */
+    'auto_relogin' => filter_var(env('TRENDAGENT_AUTO_RELOGIN', false), FILTER_VALIDATE_BOOLEAN),
+
+    /*
+    |--------------------------------------------------------------------------
     | Defaults (optional; can be overridden by command options)
     |--------------------------------------------------------------------------
     */
@@ -88,5 +98,23 @@ return [
         'commerce'   => env('TRENDAGENT_API_COMMERCE', 'https://commerce-api.trendagent.ru'),
         'rewards'    => env('TRENDAGENT_API_REWARDS', 'https://rewards-api.trendagent.ru'),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue (sync locally, redis on server)
+    |--------------------------------------------------------------------------
+    */
+    'queue' => [
+        'queue_name' => env('TRENDAGENT_QUEUE_NAME', 'default'),
+        'detail_job_delay_seconds' => (int) env('TRENDAGENT_DETAIL_JOB_DELAY_SECONDS', 2),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Detail refresh strategy (stale / missing details)
+    |--------------------------------------------------------------------------
+    */
+    'detail_refresh_hours' => (int) env('TRENDAGENT_DETAIL_REFRESH_HOURS', 24),
+    'detail_batch_size' => (int) env('TRENDAGENT_DETAIL_BATCH_SIZE', 50),
 ];
 

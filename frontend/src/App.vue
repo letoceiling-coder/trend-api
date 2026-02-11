@@ -22,6 +22,13 @@ import { RouterLink, RouterView } from 'vue-router';
             Home
           </RouterLink>
           <RouterLink
+            to="/objects/list"
+            class="hover:text-white"
+            active-class="text-white"
+          >
+            Объекты
+          </RouterLink>
+          <RouterLink
             to="/health"
             class="hover:text-white"
             active-class="text-white"

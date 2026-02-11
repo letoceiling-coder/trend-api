@@ -4,6 +4,8 @@ namespace App\Integrations\TrendAgent\Auth;
 
 use App\Models\Domain\TrendAgent\TaSsoSession;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class TrendAuthService
@@ -95,6 +97,84 @@ class TrendAuthService
             ]);
 
         return $session;
+    }
+
+    /**
+     * Self-healing: получить auth_token, при отсутствии/отклонении сессии
+     * при TRENDAGENT_AUTO_RELOGIN=true выполнить один programmatic login и повторить.
+     * Максимум один авто-ре-логин на вызов.
+     *
+     * @throws \InvalidArgumentException если cityId пустой
+     * @throws TrendAgentNotAuthenticatedException
+     */
+    public function ensureAuthenticated(string $cityId, string $lang = 'ru'): string
+    {
+        $cityId = trim($cityId);
+        if ($cityId === '') {
+            throw new \InvalidArgumentException('TrendAgent city_id is required for ensureAuthenticated (set TRENDAGENT_DEFAULT_CITY_ID or pass non-empty cityId).');
+        }
+
+        try {
+            return $this->getAuthToken($cityId, $lang);
+        } catch (TrendAgentNotAuthenticatedException $e) {
+            if (! Config::get('trendagent.auto_relogin', false)) {
+                throw $e;
+            }
+
+            $phone = Config::get('trendagent.default_phone');
+            $password = Config::get('trendagent.default_password');
+            if ($phone === null || $phone === '' || $password === null || $password === '') {
+                throw $e;
+            }
+
+            try {
+                $this->loginAndStoreSession($phone, $password, $lang);
+            } catch (TrendAgentNotAuthenticatedException $loginEx) {
+                throw $loginEx;
+            } catch (\Throwable $loginEx) {
+                throw new TrendAgentNotAuthenticatedException(
+                    'Auto-relogin failed: ' . $this->sanitizeForLog($loginEx->getMessage()),
+                    0,
+                    $loginEx
+                );
+            }
+
+            $this->invalidate($cityId, $lang);
+
+            Log::info('TrendAgent auto-relogin attempted', [
+                'phone_masked' => self::maskPhone($phone),
+                'city_id' => $cityId,
+            ]);
+
+            return $this->getAuthToken($cityId, $lang);
+        }
+    }
+
+    /**
+     * Маскировать телефон для логов (оставляем начало и конец).
+     */
+    public static function maskPhone(?string $phone): string
+    {
+        if ($phone === null || $phone === '') {
+            return '***';
+        }
+        $digits = preg_replace('/\D/', '', $phone);
+        if (strlen($digits) < 4) {
+            return '***';
+        }
+        return substr($digits, 0, 3) . '***' . substr($digits, -2);
+    }
+
+    /**
+     * Убрать из строки токены/пароли (для логов и исключений).
+     */
+    protected function sanitizeForLog(string $message): string
+    {
+        return preg_replace(
+            '/(auth_token|refresh_token|token|access_token|password|Bearer\s+)[\w\-\.]+/i',
+            '$1***',
+            $message
+        );
     }
 
     /**

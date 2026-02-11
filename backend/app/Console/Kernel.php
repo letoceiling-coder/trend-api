@@ -12,7 +12,25 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // TrendAgent: blocks list every 15 min; detail jobs are dispatched by SyncBlocksJob after run
+        $schedule->command('trendagent:dispatch:blocks')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(10);
+
+        // TrendAgent: apartments list every 15 min; detail jobs are dispatched by SyncApartmentsJob after run
+        $schedule->command('trendagent:dispatch:apartments')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(10);
+
+        // TrendAgent: refresh stale/missing block details (hourly)
+        $schedule->command('trendagent:dispatch:stale-block-details')
+            ->hourly()
+            ->withoutOverlapping();
+
+        // TrendAgent: refresh stale/missing apartment details (hourly)
+        $schedule->command('trendagent:dispatch:stale-apartment-details')
+            ->hourly()
+            ->withoutOverlapping();
     }
 
     /**
