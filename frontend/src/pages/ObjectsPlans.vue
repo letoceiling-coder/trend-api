@@ -51,23 +51,24 @@ function cardFromPlan(a: ApartmentItem) {
 
 <template>
   <PageLayout>
-    <div id="searchpage" class="page-layout__content" data-root="plans">
+    <div class="page-layout__content" data-root="plans">
       <PageLayoutFilter>
-        <div class="apartments-filter apartments-filter_search">
-          <FiltersSearch v-model="search" />
-          <button
-            type="button"
-            class="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
-            @click="load"
-          >
-            Применить
-          </button>
-        </div>
+        <FiltersSearch v-model="search" />
+        <button
+          type="button"
+          class="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+          @click="load"
+        >
+          Применить
+        </button>
       </PageLayoutFilter>
 
       <div class="objects-wrapper objects-wrapper_plans">
         <div class="container mx-auto max-w-7xl px-4 py-4">
-          <ObjectsHeader title="Планировки" :count="total" />
+          <ObjectsHeader
+            title="Планировки"
+            :count="plans.length"
+          />
           <div v-if="loading" class="py-12 text-center text-slate-400">
             Загрузка...
           </div>
@@ -75,14 +76,11 @@ function cardFromPlan(a: ApartmentItem) {
             v-else
             class="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
           >
-            <RouterLink
+            <PlanCard
               v-for="p in plans"
-              :key="p.apartment_id"
-              :to="`/flat/${p.apartment_id}`"
-              class="plancard-item"
-            >
-              <PlanCard v-bind="cardFromPlan(p)" />
-            </RouterLink>
+              :key="String(p.id)"
+              v-bind="cardFromPlan(p)"
+            />
           </div>
         </div>
       </div>

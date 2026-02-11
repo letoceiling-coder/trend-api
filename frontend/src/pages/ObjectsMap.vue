@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { RouterLink } from 'vue-router';
 import PageLayout from '../components/ui/PageLayout.vue';
 import PageLayoutFilter from '../components/ui/PageLayoutFilter.vue';
 import ObjectsHeader from '../components/ui/ObjectsHeader.vue';
