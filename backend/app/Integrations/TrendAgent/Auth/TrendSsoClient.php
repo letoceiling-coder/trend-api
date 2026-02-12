@@ -159,6 +159,11 @@ class TrendSsoClient
         $loginUrl = $this->ssoBase . '/v1/login?' . http_build_query(['app_id' => $appId, 'lang' => $lang]);
         $referer = $this->ssoWebBase . '/login?app_id=' . urlencode($appId);
 
+        $password = trim($password);
+        if (strlen($password) > 50) {
+            $password = substr($password, 0, 50);
+        }
+
         try {
             $response = $client->post($loginUrl, [
                 'allow_redirects' => false,

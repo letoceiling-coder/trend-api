@@ -27,8 +27,8 @@ class TrendagentAuthLogin extends Command
         }
 
         $password = $this->option('password') !== null && (string) $this->option('password') !== ''
-            ? (string) $this->option('password')
-            : (string) config('trendagent.default_password', '');
+            ? trim((string) $this->option('password'))
+            : trim((string) config('trendagent.default_password', ''));
 
         if ($password === '') {
             $this->error('Password not provided. Use --password or set TRENDAGENT_DEFAULT_PASSWORD in .env');

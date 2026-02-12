@@ -68,9 +68,12 @@ return [
     |--------------------------------------------------------------------------
     | When true, if getAuthToken fails (no session / refresh rejected), attempt
     | programmatic login via TRENDAGENT_DEFAULT_PHONE/PASSWORD and retry once.
-    | No infinite loops: at most one auto-relogin per ensureAuthenticated call.
+    | Default: true when both TRENDAGENT_DEFAULT_PHONE and TRENDAGENT_DEFAULT_PASSWORD are set.
     */
-    'auto_relogin' => filter_var(env('TRENDAGENT_AUTO_RELOGIN', false), FILTER_VALIDATE_BOOLEAN),
+    'auto_relogin' => filter_var(
+        env('TRENDAGENT_AUTO_RELOGIN', (env('TRENDAGENT_DEFAULT_PHONE') !== null && env('TRENDAGENT_DEFAULT_PHONE') !== '' && env('TRENDAGENT_DEFAULT_PASSWORD') !== null && env('TRENDAGENT_DEFAULT_PASSWORD') !== '') ? 'true' : 'false'),
+        FILTER_VALIDATE_BOOLEAN
+    ),
 
     /*
     |--------------------------------------------------------------------------
