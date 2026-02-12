@@ -13,10 +13,10 @@ const showAdminLink = computed(() => {
       class="border-b border-slate-800 bg-slate-900/80 backdrop-blur"
     >
       <div
-        class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3"
+        class="mx-auto flex max-w-ta-container items-center justify-between px-4 py-3"
       >
         <h1 class="text-lg font-semibold tracking-tight">
-          TrendMirror UI
+          TrendAgent
         </h1>
         <nav class="flex items-center gap-4 text-sm font-medium text-slate-300">
           <RouterLink
@@ -31,7 +31,28 @@ const showAdminLink = computed(() => {
             class="hover:text-white"
             active-class="text-white"
           >
-            Объекты
+            Комплексы
+          </RouterLink>
+          <RouterLink
+            to="/objects/table"
+            class="hover:text-white"
+            active-class="text-white"
+          >
+            Квартиры
+          </RouterLink>
+          <RouterLink
+            to="/objects/map"
+            class="hover:text-white"
+            active-class="text-white"
+          >
+            Карта
+          </RouterLink>
+          <RouterLink
+            to="/objects/plans"
+            class="hover:text-white"
+            active-class="text-white"
+          >
+            Планировки
           </RouterLink>
           <RouterLink
             to="/health"
@@ -52,7 +73,7 @@ const showAdminLink = computed(() => {
       </div>
     </header>
 
-    <main class="mx-auto max-w-5xl px-4 py-8">
+    <main class="mx-auto max-w-ta-container px-4 py-8">
       <RouterView />
     </main>
   </div>

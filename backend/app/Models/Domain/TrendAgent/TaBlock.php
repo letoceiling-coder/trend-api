@@ -71,4 +71,17 @@ class TaBlock extends Model
         }
         return [(float) $this->lat, (float) $this->lng];
     }
+
+    /**
+     * Build CDN image URL from raw payload (image.path + image.file_name).
+     */
+    public function getImageUrlAttribute(): ?string
+    {
+        $raw = $this->raw_data;
+        if (! is_array($raw) || empty($raw['image']['path']) || empty($raw['image']['file_name'])) {
+            return null;
+        }
+        $base = rtrim(config('trendagent.cdn_images', 'https://selcdn.trendagent.ru/images'), '/');
+        return $base . '/' . ltrim($raw['image']['path'], '/') . $raw['image']['file_name'];
+    }
 }

@@ -113,6 +113,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CDN base URL for images (blocks, apartments)
+    |--------------------------------------------------------------------------
+    | Raw payload has image.path + image.file_name; full URL = cdn_images + path + file_name
+    */
+    'cdn_images' => rtrim(env('TRENDAGENT_CDN_IMAGES', 'https://selcdn.trendagent.ru/images'), '/'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue (sync locally, redis on server)
     |--------------------------------------------------------------------------
     */

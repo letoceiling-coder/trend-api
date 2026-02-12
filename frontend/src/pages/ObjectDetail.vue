@@ -116,8 +116,10 @@ const images = computed(() => {
   const d = detail.value as BlockDetailPayload & { gallery?: string[] };
   const fromUnified = d?.unified_payload as { images?: string[] } | undefined;
   const list = fromUnified?.images ?? (b as Record<string, unknown>).gallery;
-  if (Array.isArray(list)) return list.map(String);
+  if (Array.isArray(list) && list.length) return list.map(String);
   if (typeof list === 'string') return [list];
+  const mainImage = (b as BlockItemWithDetail).image_url;
+  if (mainImage) return [mainImage];
   return [];
 });
 

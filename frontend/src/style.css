@@ -2,3 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Базовые стили в духе trendagent.ru: типографика, контейнер */
+@layer base {
+  html {
+    font-size: 14px;
+  }
+  body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+@layer components {
+  .page-layout__content {
+    max-width: 1180px;
+  }
+}
+

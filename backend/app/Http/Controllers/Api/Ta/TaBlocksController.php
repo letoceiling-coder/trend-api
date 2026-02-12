@@ -39,7 +39,13 @@ class TaBlocksController extends Controller
 
         $items = $query->skip($offset)->take($count)->get();
 
-        $data = $items->map(fn (TaBlock $b) => $b->normalized ?? (new BlockResource($b))->toArray(request()));
+        $data = $items->map(function (TaBlock $b) {
+            $arr = $b->normalized ?? (new BlockResource($b))->toArray(request());
+            if (! isset($arr['image_url'])) {
+                $arr['image_url'] = $b->image_url;
+            }
+            return $arr;
+        });
 
         return response()->json([
             'data' => $data,
@@ -66,6 +72,9 @@ class TaBlocksController extends Controller
         }
 
         $data = $block->normalized ?? (new BlockResource($block))->toArray($request);
+        if (! isset($data['image_url'])) {
+            $data['image_url'] = $block->image_url;
+        }
         $detail = TaBlockDetail::query()->where('block_id', $block_id)->first();
         if ($detail) {
             $data['detail'] = $detail->normalized ?? (new BlockDetailResource($detail))->toArray($request);

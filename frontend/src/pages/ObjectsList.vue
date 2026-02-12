@@ -55,7 +55,7 @@ function cardFromBlock(b: BlockItem) {
     title: b.title ?? 'Без названия',
     deadline: b.deadline ? String(b.deadline) : undefined,
     address: b.location ? String(b.location) : undefined,
-    imageUrl: undefined,
+    imageUrl: b.image_url ?? undefined,
     price:
       b.min_price != null
         ? `${Number(b.min_price).toLocaleString('ru-RU')} ₽`

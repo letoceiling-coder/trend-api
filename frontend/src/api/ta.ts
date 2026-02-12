@@ -37,6 +37,7 @@ export interface BlockItem {
   deadline?: string;
   developer_name?: string;
   location?: string;
+  image_url?: string | null;
   fetched_at?: string;
 }
 
