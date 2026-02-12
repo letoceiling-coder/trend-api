@@ -230,7 +230,7 @@ class TrendAgentSyncApartmentsTest extends TestCase
     public function test_probe_apartments_search_save_raw_stores_in_cache(): void
     {
         $this->mock(\App\Integrations\TrendAgent\Auth\TrendAuthService::class, function ($mock) {
-            $mock->shouldReceive('getAuthToken')->andReturn('fake-auth-token');
+            $mock->shouldReceive('ensureAuthenticated')->andReturn('fake-auth-token');
         });
 
         Http::fake([

@@ -10,6 +10,7 @@ use App\Jobs\TrendAgent\SyncBlockDetailJob;
 use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaBlockDetail;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TaBlocksController extends Controller
 {
@@ -38,8 +39,10 @@ class TaBlocksController extends Controller
 
         $items = $query->skip($offset)->take($count)->get();
 
+        $data = $items->map(fn (TaBlock $b) => $b->normalized ?? (new BlockResource($b))->toArray(request()));
+
         return response()->json([
-            'data' => BlockResource::collection($items),
+            'data' => $data,
             'meta' => [
                 'pagination' => [
                     'total' => $total,
@@ -52,8 +55,9 @@ class TaBlocksController extends Controller
 
     /**
      * Show one block by block_id; include detail from ta_block_details if present.
+     * Always returns data.normalized and meta.source. RAW only when debug=1 AND valid X-Internal-Key (no raw without key).
      */
-    public function show(string $block_id): JsonResponse
+    public function show(Request $request, string $block_id): JsonResponse
     {
         $block = TaBlock::query()->where('block_id', $block_id)->first();
 
@@ -61,16 +65,47 @@ class TaBlocksController extends Controller
             return response()->json(['message' => 'Block not found'], 404);
         }
 
-        $data = (new BlockResource($block))->toArray(request());
+        $data = $block->normalized ?? (new BlockResource($block))->toArray($request);
         $detail = TaBlockDetail::query()->where('block_id', $block_id)->first();
         if ($detail) {
-            $data['detail'] = (new BlockDetailResource($detail))->toArray(request());
+            $data['detail'] = $detail->normalized ?? (new BlockDetailResource($detail))->toArray($request);
+        }
+
+        $meta = [
+            'source' => [
+                'fetched_at' => $block->fetched_at?->toIso8601String(),
+                'payload_hash' => $block->payload_hash,
+            ],
+        ];
+
+        if ($this->allowRawInResponse($request)) {
+            $data['raw'] = $block->raw_data;
+            if ($detail) {
+                $data['detail']['raw'] = [
+                    'unified_payload' => $detail->unified_payload,
+                    'advantages_payload' => $detail->advantages_payload,
+                    'nearby_places_payload' => $detail->nearby_places_payload,
+                    'bank_payload' => $detail->bank_payload,
+                    'geo_buildings_payload' => $detail->geo_buildings_payload,
+                    'apartments_min_price_payload' => $detail->apartments_min_price_payload,
+                ];
+            }
         }
 
         return response()->json([
             'data' => $data,
-            'meta' => (object) [],
+            'meta' => $meta,
         ]);
+    }
+
+    /** RAW only when debug=1 AND valid X-Internal-Key. Without key, debug is ignored (no raw). */
+    private function allowRawInResponse(Request $request): bool
+    {
+        if ($request->query('debug') !== '1') {
+            return false;
+        }
+        $key = config('internal.api_key');
+        return $key !== null && $key !== '' && $request->header('X-Internal-Key') === $key;
     }
 
     /**

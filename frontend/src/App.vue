@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { RouterLink, RouterView } from 'vue-router';
+
+const showAdminLink = computed(() => {
+  return import.meta.env.DEV || !!import.meta.env.VITE_TA_ADMIN_KEY;
+});
 </script>
 
 <template>
@@ -34,6 +39,14 @@ import { RouterLink, RouterView } from 'vue-router';
             active-class="text-white"
           >
             HealthCheck
+          </RouterLink>
+          <RouterLink
+            v-if="showAdminLink"
+            to="/admin/ta"
+            class="hover:text-white"
+            active-class="text-white"
+          >
+            Admin TA
           </RouterLink>
         </nav>
       </div>

@@ -2,23 +2,26 @@
 
 ## Результат проверки на сервере
 
-**Дата проверки:** по запросу.
+**Дата проверки:** 2026-02-11 (по запросу).
 
 **Сервер:** root@89.169.39.244, путь `/var/www/trend-api/backend`.
 
-### 1. Наличие команд
+### Выполненные команды (SSH)
 
-- На сервере **отсутствуют** файлы:
-  - `app/Console/Commands/TaTestMysqlCommand.php`
-  - `app/Console/Commands/TaTestMysqlInitCommand.php`
-- В выводе `php artisan list` **нет** команд `ta:test:mysql` и `ta:test:mysql:init`.
-- **Причина:** код с этими командами не задеплоен (файлы в репозитории не закоммичены / не запушены / деплой не выполнялся).
+```bash
+cd /var/www/trend-api/backend
+php artisan ta:test:mysql:init --show-sql
+php artisan ta:test:mysql
+```
 
-### 2. Команды не выполнялись
+### Результат
 
-Из-за отсутствия команд на сервере **не были выполнены**:
-- `php artisan ta:test:mysql:init --show-sql`
-- `php artisan ta:test:mysql`
+| Команда | Статус | Вывод |
+|--------|--------|--------|
+| `ta:test:mysql:init --show-sql` | **FAIL** | `File .env.testing.mysql not found. Copy from .env.testing.mysql.example first.` |
+| `ta:test:mysql` | **FAIL** | `File .env.testing.mysql not found.` + подсказка скопировать example и задать DB_* |
+
+**Причина:** на сервере нет файла `.env.testing.mysql` (он в `.gitignore` и не деплоится). Команды на сервере **есть** и отрабатывают корректно — требуют предварительной настройки конфига.
 
 ---
 
@@ -98,7 +101,7 @@ OK (88 tests, ...)
 
 | Действие | Статус |
 |----------|--------|
-| Выполнить на сервере `ta:test:mysql:init --show-sql` | Не выполнено — команда на сервере отсутствует |
-| Выполнить на сервере `ta:test:mysql` | Не выполнено — команда на сервере отсутствует |
-| Причина | Код команд не закоммичен и не задеплоен |
-| Что делать | Закоммитить и запушить изменения, выполнить `php artisan deploy`, затем на сервере создать `.env.testing.mysql` и выполнить указанные команды |
+| Выполнить на сервере `ta:test:mysql:init --show-sql` | Выполнено — команда есть; выход с ошибкой: нет `.env.testing.mysql` |
+| Выполнить на сервере `ta:test:mysql` | Выполнено — команда есть; выход с ошибкой: нет `.env.testing.mysql` |
+| Причина | На сервере не создан файл `.env.testing.mysql` (не коммитится, нужно создать вручную) |
+| Что делать | На сервере: **`php artisan ta:test:mysql:setup`** (или cp + правка вручную), затем **`ta:test:mysql:init`** (или --show-sql и выполнить SQL), затем **`ta:test:mysql`** |

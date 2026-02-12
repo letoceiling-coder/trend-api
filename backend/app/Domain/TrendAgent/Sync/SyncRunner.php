@@ -2,7 +2,9 @@
 
 namespace App\Domain\TrendAgent\Sync;
 
+use App\Domain\TrendAgent\Quality\DataQualityRunner;
 use App\Models\Domain\TrendAgent\TaSyncRun;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class SyncRunner
@@ -34,13 +36,34 @@ class SyncRunner
             'items_saved' => $itemsSaved,
         ]);
 
+        $this->runLightQualityChecks($run->scope, 20);
+
         return $run->fresh();
     }
 
     /**
-     * Mark sync run as failed. Masks tokens in error message and context.
+     * Run light data quality checks for the given scope (e.g. last 20 records).
+     * Does not throw; failures are logged only.
      */
-    public function finishFail(TaSyncRun $run, Throwable $e, array $context = []): TaSyncRun
+    protected function runLightQualityChecks(string $scope, int $limit = 20): void
+    {
+        try {
+            $runner = app(DataQualityRunner::class);
+            $runner->runScope($scope, $limit, 100);
+        } catch (Throwable $e) {
+            Log::warning('TrendAgent light quality check failed after sync', [
+                'scope' => $scope,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Mark sync run as failed. Masks tokens in error message and context.
+     *
+     * @param  string|null  $errorCode  Optional code (e.g. normalization_failed, detect_blocks_array)
+     */
+    public function finishFail(TaSyncRun $run, Throwable $e, array $context = [], ?string $errorCode = null): TaSyncRun
     {
         $errorMessage = $this->sanitizeMessage($e->getMessage());
         $sanitizedContext = $this->sanitizeContext($context);
@@ -50,6 +73,7 @@ class SyncRunner
             'finished_at' => now(),
             'error_message' => $errorMessage,
             'error_context' => $sanitizedContext,
+            'error_code' => $errorCode,
         ]);
 
         return $run->fresh();

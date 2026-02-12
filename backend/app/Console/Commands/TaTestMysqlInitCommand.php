@@ -20,7 +20,8 @@ class TaTestMysqlInitCommand extends Command
         $envFile = base_path('.env.testing.mysql');
 
         if (! is_file($envFile)) {
-            $this->error('File .env.testing.mysql not found. Copy from .env.testing.mysql.example first.');
+            $this->error('File .env.testing.mysql not found.');
+            $this->line('Run: php artisan ta:test:mysql:setup');
             return self::FAILURE;
         }
 

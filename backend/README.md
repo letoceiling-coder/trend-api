@@ -212,8 +212,8 @@ php artisan ta:test:mysql
 - **GET /api/ta/admin/sync-runs** — последние sync runs (параметры: scope, status, since_hours, limit).
 - **GET /api/ta/admin/contract-changes** — изменения контракта API.
 - **GET /api/ta/admin/quality-checks** — результаты проверок качества данных.
-- **GET /api/ta/admin/health** — сводка: последний успешный sync по scope, счётчики изменений контракта и fail по качеству за 24 ч, информация об очереди.
-- **POST /api/ta/admin/pipeline/run** — «one-shot» заполнение данных под фронт: синхронный или асинхронный запуск sync blocks + apartments и при необходимости detail jobs (тело JSON: city_id, lang, blocks_count, blocks_pages, apartments_pages, dispatch_details, detail_limit).
+- **GET /api/ta/admin/health** — сводка: последний успешный sync по scope, счётчики contract/quality за 24 ч, **pipeline_last_24h_count** и **pipeline_failed_last_24h_count**, очередь, coverage, runtime.
+- **POST /api/ta/admin/pipeline/run** — «one-shot» заполнение данных под фронт: синхронный или асинхронный запуск sync blocks + apartments и при необходимости detail jobs (тело JSON: city_id, lang, blocks_count, blocks_pages, apartments_pages, dispatch_details, detail_limit). На пару (city_id, lang) действует **lock 15 мин** — повторный запуск в течение срока возвращает **409** (message, meta.lock_until). Каждый запуск пишется в **ta_pipeline_runs** (audit: id UUID, params, status queued|running|success|failed, requested_by и др.).
 
 Подробнее и примеры curl — в `docs/trendagent/STAGE_2_MONITORING_PIPELINE_REPORT.md` и `docs/trendagent/STATUS.md`.
 
@@ -281,8 +281,14 @@ GET /api/ta/unit-measurements
 | `QUEUE_CONNECTION` | Драйвер очереди | `sync` | `redis` |
 | `TRENDAGENT_QUEUE_NAME` | Имя очереди для Jobs | по умолчанию `default` | по желанию |
 | `TRENDAGENT_DETAIL_JOB_DELAY_SECONDS` | Задержка между dispatch деталей (сек) | 2 | по желанию |
+| `TA_ALERT_TELEGRAM_BOT_TOKEN` | Токен бота для уведомлений в Telegram (опционально) | — | не коммитить |
+| `TA_ALERT_TELEGRAM_CHAT_ID` | ID чата Telegram для алертов | — | не коммитить |
+| `TA_ALERT_QUIET_HOURS` | Интервал «тихих часов», алерты не шлём, копим сводку (напр. `23:00-08:00`) | — | по желанию |
+| `TA_ALERT_QUIET_HOURS_TIMEZONE` | Часовой пояс для quiet hours (по умолчанию `Europe/Kiev`) | — | по желанию |
 
 Для Redis нужны `REDIS_HOST`, `REDIS_PASSWORD`, `REDIS_PORT` (и при необходимости `REDIS_QUEUE` в `config/queue.php`).
+
+При заданных `TA_ALERT_TELEGRAM_BOT_TOKEN` и `TA_ALERT_TELEGRAM_CHAT_ID` по расписанию каждые 5 минут выполняется `ta:alerts:check`: при сбоях sync, росте числа quality fail, отсутствии успешного sync по blocks/apartments или при **relogin_failed_last_24h > 0** («Auth relogin failing») отправляется сообщение в Telegram. Токены не логируются; в сообщениях нет секретов и raw payload. **Production-ready:** дедуп по fingerprint (30 мин), quiet hours (в интервал алерты не отправляются, после — одна сводка «During quiet hours we suppressed X alerts» + top reasons). Формат сообщений: заголовок, счётчики, топ scopes, подсказка GET/curl на `/api/ta/admin/sync-runs` или `quality-checks`.
 
 ### Команды dispatch (постановка в очередь)
 
@@ -300,6 +306,7 @@ GET /api/ta/unit-measurements
 - **Список блоков** — каждые 15 минут (`trendagent:dispatch:blocks`).
 - **Список квартир** — каждые 15 минут (`trendagent:dispatch:apartments`).
 - **Детали** — обновляются по очереди: после каждого списка диспатчатся Jobs на детали (новые/обновлённые), без отдельной cron-задачи.
+- **Алерты Telegram** — каждые 5 минут `ta:alerts:check --since=15m` (при заданных TA_ALERT_TELEGRAM_BOT_TOKEN и TA_ALERT_TELEGRAM_CHAT_ID).
 
 На сервере добавьте в crontab:
 

@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Domain\TrendAgent\Payload\PayloadCacheWriter;
 use App\Domain\TrendAgent\Sync\TrendAgentSyncService;
 use App\Integrations\TrendAgent\Http\TrendHttpClient;
-use App\Models\Domain\TrendAgent\TaPayloadCache;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Config;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -240,15 +240,15 @@ class TrendagentProbeApartmentsSearch extends Command
             'response' => $result['response'],
         ];
 
-        TaPayloadCache::create([
-            'provider' => 'trendagent',
-            'scope' => 'probe_apartments_search',
-            'external_id' => $externalId,
-            'city_id' => $cityId,
-            'lang' => $lang,
-            'payload' => json_encode($payload),
-            'fetched_at' => now(),
-        ]);
+        PayloadCacheWriter::create(
+            'probe_apartments_search',
+            $externalId,
+            PayloadCacheWriter::endpointFromUrl($result['url']),
+            (int) $result['status'],
+            $payload,
+            $cityId,
+            $lang,
+        );
 
         $this->line('✓ Saved to ta_payload_cache (external_id: ' . $externalId . ')');
     }

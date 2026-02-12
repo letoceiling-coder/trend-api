@@ -23,6 +23,7 @@ class TaSyncRun extends Model
         'items_saved',
         'error_message',
         'error_context',
+        'error_code',
     ];
 
     protected $casts = [

@@ -24,8 +24,8 @@ class TaTestMysqlCommand extends Command
 
         if (! is_file($envFile)) {
             $this->error('File .env.testing.mysql not found.');
-            $this->line('Copy from .env.testing.mysql.example and set DB_* (DB_DATABASE=trend_api_test, DB_USERNAME, DB_PASSWORD).');
-            $this->line('Example: cp .env.testing.mysql.example .env.testing.mysql');
+            $this->line('Run: php artisan ta:test:mysql:setup');
+            $this->line('Or copy manually: cp .env.testing.mysql.example .env.testing.mysql and set DB_* (DB_DATABASE=trend_api_test, DB_USERNAME, DB_PASSWORD).');
             return self::FAILURE;
         }
 

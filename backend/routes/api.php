@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\Ta\TaBlocksController;
 use App\Http\Controllers\Api\Ta\TaDirectoriesController;
 use App\Http\Controllers\Api\Ta\TaUnitMeasurementsController;
 use App\Http\Controllers\Api\TaAdmin\ContractChangesController;
+use App\Http\Controllers\Api\TaAdmin\CoverageController;
 use App\Http\Controllers\Api\TaAdmin\HealthController;
 use App\Http\Controllers\Api\TaAdmin\PipelineController;
 use App\Http\Controllers\Api\TaAdmin\QualityChecksController;
@@ -63,17 +64,19 @@ Route::prefix('ta')->group(function () {
         Route::get('contract-changes', [ContractChangesController::class, 'index']);
         Route::get('quality-checks', [QualityChecksController::class, 'index']);
         Route::get('health', [HealthController::class, 'index']);
+        Route::get('coverage', [CoverageController::class, 'index']);
         Route::post('pipeline/run', [PipelineController::class, 'run']);
     });
 });
 
 /*
 |--------------------------------------------------------------------------
-| TA-UI — frontend proxy for refresh (no X-Internal-Key)
+| TA-UI — frontend proxy for refresh (X-Internal-Key or allowlist IP)
 |--------------------------------------------------------------------------
-| Rate-limited. Same effect as POST /api/ta/.../refresh.
+| TaUiGuard: valid key OR client IP in TA_UI_ALLOW_IPS. Otherwise 401.
+| Rate-limited when using allowlist.
 */
-Route::prefix('ta-ui')->middleware('throttle:10,1')->group(function () {
+Route::prefix('ta-ui')->middleware(['ta_ui.guard', 'throttle:10,1'])->group(function () {
     Route::post('blocks/{block_id}/refresh', [TaUiRefreshController::class, 'refreshBlock']);
     Route::post('apartments/{apartment_id}/refresh', [TaUiRefreshController::class, 'refreshApartment']);
 });

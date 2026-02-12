@@ -29,7 +29,7 @@ class TrendAgentSyncApartmentDetailTest extends TestCase
     public function test_probe_apartment_detail_saves_raw_and_summary(): void
     {
         $this->mock(\App\Integrations\TrendAgent\Auth\TrendAuthService::class, function ($mock) {
-            $mock->shouldReceive('getAuthToken')->andReturn('fake-token');
+            $mock->shouldReceive('ensureAuthenticated')->andReturn('fake-token');
         });
 
         \Illuminate\Support\Facades\Http::fake([

@@ -75,11 +75,11 @@ class TrendAgentSyncServiceTest extends TestCase
 
         $mockHttp = Mockery::mock(TrendHttpClient::class);
         $mockHttp->shouldReceive('get')
-            ->once()
+            ->twice()
             ->with(
                 Mockery::on(fn ($url) => str_contains($url, '/v1/directories')),
-                Mockery::on(fn ($query) => 
-                    $query['city'] === '58c665588b6aa52311afa01b' 
+                Mockery::on(fn ($query) =>
+                    $query['city'] === '58c665588b6aa52311afa01b'
                     && $query['lang'] === 'ru'
                     && isset($query['types'])
                 )

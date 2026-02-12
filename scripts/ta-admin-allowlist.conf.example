@@ -1,0 +1,9 @@
+# TA Admin allowlist: allow these IPs; all others get 403.
+# Copy to /etc/nginx/ta/ta-admin-allowlist.conf (create dir: sudo mkdir -p /etc/nginx/ta).
+# Reload nginx after changes: sudo nginx -t && sudo systemctl reload nginx
+
+allow 10.0.0.0/8;
+allow 192.168.0.0/16;
+allow 127.0.0.1;
+# allow 203.0.113.50;
+deny all;

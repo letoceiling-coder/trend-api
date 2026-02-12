@@ -21,6 +21,8 @@ class TaBlockDetail extends Model
         'bank_payload',
         'geo_buildings_payload',
         'apartments_min_price_payload',
+        'normalized',
+        'payload_hash',
         'fetched_at',
     ];
 
@@ -31,6 +33,7 @@ class TaBlockDetail extends Model
         'bank_payload' => 'array',
         'geo_buildings_payload' => 'array',
         'apartments_min_price_payload' => 'array',
+        'normalized' => 'array',
         'fetched_at' => 'datetime',
     ];
 

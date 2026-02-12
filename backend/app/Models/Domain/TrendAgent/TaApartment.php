@@ -24,6 +24,8 @@ class TaApartment extends Model
         'city_id',
         'lang',
         'raw',
+        'normalized',
+        'payload_hash',
         'fetched_at',
     ];
 
@@ -33,6 +35,7 @@ class TaApartment extends Model
         'floor' => 'integer',
         'price' => 'integer',
         'raw' => 'array',
+        'normalized' => 'array',
         'fetched_at' => 'datetime',
     ];
 

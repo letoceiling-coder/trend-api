@@ -1,0 +1,26 @@
+# TrendAgent admin security (production) — include inside server { } block.
+# - /api/ta/admin/*  : allowlist only, deny all others → 403
+# - /admin/ta         : satisfy any → Basic Auth OR allowlist
+# Allowlist file: /etc/nginx/ta/ta-admin-allowlist.conf (create dir: sudo mkdir -p /etc/nginx/ta)
+
+# --- /api/ta/admin/* : allowlist + deny all, 403 for others ---
+location /api/ta/admin/ {
+    include /etc/nginx/ta/ta-admin-allowlist.conf;
+    try_files $uri $uri/ /index.php?$query_string;
+}
+
+# --- /admin/ta : Basic Auth OR allowlist (satisfy any) ---
+location /admin/ta {
+    satisfy any;
+    auth_basic "TA Admin";
+    auth_basic_user_file /etc/nginx/ta/htpasswd.ta-admin;
+    include /etc/nginx/ta/ta-admin-allowlist.conf;
+    try_files $uri $uri/ /index.html?$query_string;
+}
+location /admin/ta/ {
+    satisfy any;
+    auth_basic "TA Admin";
+    auth_basic_user_file /etc/nginx/ta/htpasswd.ta-admin;
+    include /etc/nginx/ta/ta-admin-allowlist.conf;
+    try_files $uri $uri/ /index.html?$query_string;
+}

@@ -1,0 +1,29 @@
+# TrendAgent queue worker (Ubuntu systemd)
+# Install: sudo cp deploy/trend-api-queue.service /etc/systemd/system/
+#          sudo systemctl daemon-reload
+# Configure: edit /etc/systemd/system/trend-api-queue.service (User, WorkingDirectory, queue name)
+# Secrets: do not store in this file; use .env on the server (not in repo)
+
+[Unit]
+Description=TrendAgent Laravel queue worker
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/trend-api/backend
+
+# Use redis and queue name from config (TRENDAGENT_QUEUE_NAME). Adjust --queue= if different.
+ExecStart=/usr/bin/php artisan queue:work redis --queue=default --sleep=3 --tries=3
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=trend-api-queue
+
+[Install]
+WantedBy=multi-user.target

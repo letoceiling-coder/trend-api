@@ -15,10 +15,13 @@ class TaPayloadCache extends Model
         'provider',
         'scope',
         'external_id',
+        'endpoint',
+        'http_status',
         'city_id',
         'lang',
         'etag',
         'payload',
+        'payload_hash',
         'fetched_at',
     ];
 

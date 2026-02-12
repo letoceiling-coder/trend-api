@@ -1,0 +1,12 @@
+# TrendAgent Laravel scheduler (run every minute)
+#
+# Option A — crontab for user www-data:
+#   sudo crontab -u www-data -e
+#   Add: * * * * * cd /var/www/trend-api/backend && /usr/bin/php artisan schedule:run >> /var/log/trend-api-schedule.log 2>&1
+#
+# Option B — drop-in for /etc/cron.d/ (no .cron extension when copying):
+#   sudo cp deploy/trend-api-schedule.cron /etc/cron.d/trend-api-schedule
+#   Then edit and keep only the line below (user = 6th field). No spaces after the line.
+#
+# Line for /etc/cron.d/ (minute hour day month weekday user command):
+* * * * * www-data cd /var/www/trend-api/backend && /usr/bin/php artisan schedule:run >> /var/log/trend-api-schedule.log 2>&1

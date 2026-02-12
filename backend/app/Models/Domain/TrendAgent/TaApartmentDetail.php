@@ -18,6 +18,8 @@ class TaApartmentDetail extends Model
         'unified_payload',
         'prices_totals_payload',
         'prices_graph_payload',
+        'normalized',
+        'payload_hash',
         'fetched_at',
     ];
 
@@ -25,6 +27,7 @@ class TaApartmentDetail extends Model
         'unified_payload' => 'array',
         'prices_totals_payload' => 'array',
         'prices_graph_payload' => 'array',
+        'normalized' => 'array',
         'fetched_at' => 'datetime',
     ];
 

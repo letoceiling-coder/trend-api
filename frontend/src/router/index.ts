@@ -8,6 +8,7 @@ import ObjectsPlans from '../pages/ObjectsPlans.vue';
 import Checkerboard from '../pages/Checkerboard.vue';
 import ObjectDetail from '../pages/ObjectDetail.vue';
 import FlatDetail from '../pages/FlatDetail.vue';
+import TaAdmin from '../pages/TaAdmin.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -29,6 +30,7 @@ const router = createRouter({
       name: 'flat-detail',
       component: FlatDetail,
     },
+    { path: '/admin/ta', name: 'ta-admin', component: TaAdmin },
   ],
 });
 

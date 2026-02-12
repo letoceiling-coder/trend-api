@@ -5,6 +5,7 @@ namespace Tests\Unit\Integrations\TrendAgent;
 use App\Integrations\TrendAgent\Auth\TrendAuthService;
 use App\Integrations\TrendAgent\Auth\TrendSsoClient;
 use App\Integrations\TrendAgent\Auth\TrendAgentNotAuthenticatedException;
+use App\Models\Domain\TrendAgent\TaReloginEvent;
 use App\Models\Domain\TrendAgent\TaSsoSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -183,6 +184,84 @@ class TrendAuthServiceTest extends TestCase
         $this->expectExceptionMessage('SSO login not saved');
 
         $service->ensureAuthenticated('city-1', 'ru');
+    }
+
+    /** Rate-limit: when rate key is set, ensureAuthenticated does not call login and throws Relogin rate-limited */
+    public function test_relogin_rate_limited_second_call_does_not_login(): void
+    {
+        Cache::flush();
+        Config::set('trendagent.auto_relogin', true);
+        Config::set('trendagent.default_phone', '+79991234567');
+        Config::set('trendagent.default_password', 'secret');
+
+        $rateKey = 'ta:auth:relogin:last:' . hash('sha256', '+79991234567:city-1');
+        Cache::put($rateKey, true, 600);
+
+        $sso = Mockery::mock(TrendSsoClient::class);
+        $sso->shouldReceive('getAuthToken')->never();
+        $sso->shouldReceive('login')->never();
+
+        $service = new TrendAuthService($sso);
+
+        $this->expectException(TrendAgentNotAuthenticatedException::class);
+        $this->expectExceptionMessage('Relogin rate-limited');
+
+        $service->ensureAuthenticated('city-1', 'ru');
+    }
+
+    /** Cooldown: when cooldown key is set, ensureAuthenticated does not call login and throws Relogin in cooldown */
+    public function test_relogin_cooldown_after_failures_does_not_login(): void
+    {
+        Cache::flush();
+        Config::set('trendagent.auto_relogin', true);
+        Config::set('trendagent.default_phone', '+79991112233');
+        Config::set('trendagent.default_password', 'secret');
+
+        Cache::put('ta:auth:relogin:cooldown', true, 1800);
+
+        $sso = Mockery::mock(TrendSsoClient::class);
+        $sso->shouldReceive('getAuthToken')->never();
+        $sso->shouldReceive('login')->never();
+
+        $service = new TrendAuthService($sso);
+
+        $this->expectException(TrendAgentNotAuthenticatedException::class);
+        $this->expectExceptionMessage('Relogin in cooldown');
+
+        $service->ensureAuthenticated('city-1', 'ru');
+    }
+
+    /** Two failed relogins set cooldown and record events */
+    public function test_relogin_two_failures_set_cooldown_and_record_events(): void
+    {
+        Cache::flush();
+        Config::set('trendagent.auto_relogin', true);
+        Config::set('trendagent.default_phone', '+79991112233');
+        Config::set('trendagent.default_password', 'secret');
+
+        $sso = Mockery::mock(TrendSsoClient::class);
+        $sso->shouldReceive('getAuthToken')
+            ->andThrow(new TrendAgentNotAuthenticatedException('SSO session is not available.'));
+        $sso->shouldReceive('login')
+            ->twice()
+            ->andReturn(['ok' => false, 'reason' => 'blocked']);
+
+        $service = new TrendAuthService($sso);
+
+        try {
+            $service->ensureAuthenticated('city-1', 'ru');
+        } catch (TrendAgentNotAuthenticatedException $e) {
+            $this->assertStringContainsString('SSO login not saved', $e->getMessage());
+        }
+
+        try {
+            $service->ensureAuthenticated('city-1', 'ru');
+        } catch (TrendAgentNotAuthenticatedException $e) {
+            $this->assertStringContainsString('SSO login not saved', $e->getMessage());
+        }
+
+        $this->assertTrue(Cache::has('ta:auth:relogin:cooldown'));
+        $this->assertSame(2, TaReloginEvent::query()->where('success', false)->count());
     }
 }
 

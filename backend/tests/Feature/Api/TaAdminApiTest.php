@@ -114,10 +114,59 @@ class TaAdminApiTest extends TestCase
                     ],
                     'contract_changes_last_24h_count',
                     'quality_fail_last_24h_count',
+                    'pipeline_last_24h_count',
+                    'pipeline_failed_last_24h_count',
                     'queue' => ['connection', 'queue_name'],
+                    'coverage' => [
+                        'blocks_total',
+                        'blocks_with_detail_fresh',
+                        'blocks_without_detail',
+                        'apartments_total',
+                        'apartments_with_detail_fresh',
+                        'apartments_without_detail',
+                    ],
+                    'runtime' => [
+                        'schedule_ok',
+                        'queue_ok',
+                        'redis_ok',
+                        'last_schedule_run_at',
+                        'last_queue_heartbeat_at',
+                    ],
                 ],
                 'meta',
             ]);
+    }
+
+    public function test_admin_coverage_with_key_returns_200_and_structure(): void
+    {
+        $response = $this->getJson('/api/ta/admin/coverage', [
+            'X-Internal-Key' => 'test-admin-key',
+        ]);
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'data' => [
+                    'blocks_total',
+                    'blocks_with_detail_fresh',
+                    'blocks_without_detail',
+                    'apartments_total',
+                    'apartments_with_detail_fresh',
+                    'apartments_without_detail',
+                ],
+                'meta',
+            ]);
+        $data = $response->json('data');
+        $this->assertIsInt($data['blocks_total']);
+        $this->assertIsInt($data['blocks_with_detail_fresh']);
+        $this->assertIsInt($data['blocks_without_detail']);
+        $this->assertIsInt($data['apartments_total']);
+        $this->assertIsInt($data['apartments_with_detail_fresh']);
+        $this->assertIsInt($data['apartments_without_detail']);
+    }
+
+    public function test_admin_coverage_without_key_returns_401(): void
+    {
+        $response = $this->getJson('/api/ta/admin/coverage');
+        $response->assertStatus(401);
     }
 
     public function test_admin_pipeline_run_without_key_returns_401(): void
@@ -143,8 +192,72 @@ class TaAdminApiTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertJsonPath('data.queued', true);
-        $response->assertJsonPath('data.run_id', 'dispatched');
+        $runId = $response->json('data.run_id');
+        $this->assertNotEmpty($runId);
         Queue::assertPushed(\App\Jobs\TrendAgent\SyncBlocksJob::class);
         Queue::assertPushed(\App\Jobs\TrendAgent\SyncApartmentsJob::class);
+
+        $this->assertDatabaseHas('ta_pipeline_runs', [
+            'id' => $runId,
+            'city_id' => 'c1',
+            'lang' => 'ru',
+            'status' => 'queued',
+        ]);
+    }
+
+    public function test_admin_pipeline_run_second_request_same_city_lang_returns_409(): void
+    {
+        Config::set('queue.default', 'redis');
+        Queue::fake();
+
+        $this->postJson('/api/ta/admin/pipeline/run', [
+            'city_id' => 'c1',
+            'lang' => 'ru',
+            'blocks_count' => 10,
+            'blocks_pages' => 1,
+            'dispatch_details' => false,
+        ], [
+            'X-Internal-Key' => 'test-admin-key',
+        ])->assertStatus(200);
+
+        $response = $this->postJson('/api/ta/admin/pipeline/run', [
+            'city_id' => 'c1',
+            'lang' => 'ru',
+            'blocks_count' => 10,
+            'blocks_pages' => 1,
+            'dispatch_details' => false,
+        ], [
+            'X-Internal-Key' => 'test-admin-key',
+        ]);
+
+        $response->assertStatus(409);
+        $response->assertJsonPath('message', 'Pipeline already running');
+        $response->assertJsonStructure(['meta' => ['lock_until']]);
+    }
+
+    public function test_admin_pipeline_run_creates_ta_pipeline_runs_record(): void
+    {
+        Config::set('queue.default', 'redis');
+        Queue::fake();
+
+        $this->postJson('/api/ta/admin/pipeline/run', [
+            'city_id' => 'c2',
+            'lang' => 'en',
+            'blocks_count' => 5,
+            'dispatch_details' => false,
+        ], [
+            'X-Internal-Key' => 'test-admin-key',
+        ])->assertStatus(200);
+
+        $this->assertDatabaseHas('ta_pipeline_runs', [
+            'city_id' => 'c2',
+            'lang' => 'en',
+            'status' => 'queued',
+        ]);
+        $run = \App\Models\Domain\TrendAgent\TaPipelineRun::where('city_id', 'c2')->where('lang', 'en')->first();
+        $this->assertNotNull($run);
+        $this->assertSame('queued', $run->status);
+        $this->assertIsArray($run->params);
+        $this->assertSame(5, $run->params['blocks_count'] ?? 0);
     }
 }

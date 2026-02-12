@@ -9,7 +9,12 @@ use App\Models\Domain\TrendAgent\TaApartmentDetail;
 use App\Models\Domain\TrendAgent\TaBlock;
 use App\Models\Domain\TrendAgent\TaBlockDetail;
 use App\Models\Domain\TrendAgent\TaDirectory;
-use App\Models\Domain\TrendAgent\TaPayloadCache;
+use App\Domain\TrendAgent\Normalizers\ApartmentDetailNormalizer;
+use App\Domain\TrendAgent\Normalizers\ApartmentNormalizer;
+use App\Domain\TrendAgent\Normalizers\BlockDetailNormalizer;
+use App\Domain\TrendAgent\Normalizers\BlockNormalizer;
+use App\Domain\TrendAgent\Payload\CanonicalPayload;
+use App\Domain\TrendAgent\Payload\PayloadCacheWriter;
 use App\Models\Domain\TrendAgent\TaSyncRun;
 use App\Models\Domain\TrendAgent\TaUnitMeasurement;
 use Illuminate\Support\Facades\Config;
@@ -71,15 +76,15 @@ class TrendAgentSyncService
                     $itemsSaved++;
 
                     if ($storeRawPayload) {
-                        TaPayloadCache::create([
-                            'provider' => 'trendagent',
-                            'scope' => 'unit_measurements',
-                            'external_id' => $item['_id'],
-                            'city_id' => $cityId,
-                            'lang' => $lang,
-                            'payload' => json_encode($item),
-                            'fetched_at' => now(),
-                        ]);
+                        PayloadCacheWriter::create(
+                            'unit_measurements',
+                            $item['_id'],
+                            '/v4_29/unit_measurements',
+                            200,
+                            $item,
+                            $cityId,
+                            $lang,
+                        );
                     }
                 }
             });
@@ -144,15 +149,15 @@ class TrendAgentSyncService
                     $itemsSaved++;
 
                     if ($storeRawPayload) {
-                        TaPayloadCache::create([
-                            'provider' => 'trendagent',
-                            'scope' => 'directories',
-                            'external_id' => $type,
-                            'city_id' => $cityId,
-                            'lang' => $lang,
-                            'payload' => json_encode($payload),
-                            'fetched_at' => now(),
-                        ]);
+                        PayloadCacheWriter::create(
+                            'directories',
+                            $type,
+                            '/v1/directories',
+                            200,
+                            $payload,
+                            $cityId,
+                            $lang,
+                        );
                     }
                 }
             });
@@ -216,6 +221,23 @@ class TrendAgentSyncService
                 $response = $this->http->get($url, $queryParams);
                 $data = $response->json();
 
+                if ($storeRawPayload) {
+                    $externalId = sprintf(
+                        'show_type:%s;offset:%d',
+                        $queryParams['show_type'],
+                        $currentOffset
+                    );
+                    PayloadCacheWriter::create(
+                        'blocks_search_page',
+                        $externalId,
+                        PayloadCacheWriter::endpointFromUrl($url),
+                        $response->status(),
+                        $data ?? $response->body(),
+                        $cityId,
+                        $lang,
+                    );
+                }
+
                 // Shape detector: find array of blocks
                 $blocks = $this->detectBlocksArray($data);
 
@@ -231,25 +253,6 @@ class TrendAgentSyncService
                 if ($pageFetched > 0) {
                     $pageSaved = $this->saveBlocks($blocks, $cityId, $lang);
                     $totalSaved += $pageSaved;
-                }
-
-                // Store raw payload cache for this page
-                if ($storeRawPayload) {
-                    $externalId = sprintf(
-                        'show_type:%s;offset:%d',
-                        $queryParams['show_type'],
-                        $currentOffset
-                    );
-
-                    TaPayloadCache::create([
-                        'provider' => 'trendagent',
-                        'scope' => 'blocks_search_page',
-                        'external_id' => $externalId,
-                        'city_id' => $cityId,
-                        'lang' => $lang,
-                        'payload' => json_encode($data),
-                        'fetched_at' => now(),
-                    ]);
                 }
 
                 $pagesProcessed++;
@@ -537,6 +540,23 @@ class TrendAgentSyncService
                 $response = $this->http->get($url, $queryParams);
                 $data = $response->json();
 
+                if ($storeRawPayload) {
+                    $externalId = sprintf(
+                        'offset:%d;count:%d',
+                        $currentOffset,
+                        $count
+                    );
+                    PayloadCacheWriter::create(
+                        'apartments_search_page',
+                        $externalId,
+                        PayloadCacheWriter::endpointFromUrl($url),
+                        $response->status(),
+                        $data ?? $response->body(),
+                        $cityId,
+                        $lang,
+                    );
+                }
+
                 $apartments = $this->detectApartmentsArray($data);
 
                 if ($apartments === null) {
@@ -551,23 +571,6 @@ class TrendAgentSyncService
                 if ($pageFetched > 0) {
                     $pageSaved = $this->saveApartments($apartments, $cityId, $lang, $storeRawPayload);
                     $totalSaved += $pageSaved;
-                }
-
-                if ($storeRawPayload) {
-                    $externalId = sprintf(
-                        'offset:%d;count:%d',
-                        $currentOffset,
-                        $count
-                    );
-                    TaPayloadCache::create([
-                        'provider' => 'trendagent',
-                        'scope' => 'apartments_search_page',
-                        'external_id' => $externalId,
-                        'city_id' => $cityId,
-                        'lang' => $lang,
-                        'payload' => json_encode($data),
-                        'fetched_at' => now(),
-                    ]);
                 }
 
                 $pagesProcessed++;
@@ -591,7 +594,7 @@ class TrendAgentSyncService
                 'city_id' => $cityId,
                 'lang' => $lang,
                 'params' => $params,
-            ]);
+            ], str_contains($e->getMessage(), 'Unable to detect apartments array') ? 'detect_apartments_array' : null);
 
             return [
                 'run' => $run->fresh(),
@@ -639,6 +642,9 @@ class TrendAgentSyncService
                 $status = is_array($statusRaw) ? ($statusRaw['name'] ?? $statusRaw['name_short'] ?? null) : $statusRaw;
                 $status = $this->scalarString($status);
 
+                $normalized = ApartmentNormalizer::normalize($item);
+                $payloadHash = $storeRaw ? CanonicalPayload::payloadHash($item) : null;
+
                 $attrs = [
                     'block_id' => $blockId,
                     'guid' => $guid,
@@ -649,6 +655,8 @@ class TrendAgentSyncService
                     'price' => $price,
                     'status' => $status,
                     'lang' => $lang,
+                    'normalized' => $normalized,
+                    'payload_hash' => $payloadHash,
                     'fetched_at' => now(),
                 ];
 
@@ -731,14 +739,15 @@ class TrendAgentSyncService
 
                 try {
                     $response = $this->http->get($url, $queryParams);
+                    $body = $response->json() ?? $response->body();
+
+                    if ($storeRawPayload) {
+                        $this->saveSinglePayloadToCache($blockId, $key, $body, $response->status(), $url, $cityId, $lang);
+                    }
 
                     if ($response->status() >= 200 && $response->status() < 300) {
-                        $payloads[$key . '_payload'] = $response->json();
+                        $payloads[$key . '_payload'] = is_array($body) ? $body : json_decode($body, true);
                         $fetchedCount++;
-
-                        if ($storeRawPayload) {
-                            $this->saveSinglePayloadToCache($blockId, $key, $response->json(), $url, $cityId, $lang);
-                        }
                     } elseif ($config['required']) {
                         throw new RuntimeException("Required endpoint {$key} failed with status {$response->status()}");
                     }
@@ -769,12 +778,11 @@ class TrendAgentSyncService
     }
 
     /**
-     * Save single payload to cache
+     * Save single payload to cache (always when storeRawPayload; includes errors).
      */
-    protected function saveSinglePayloadToCache(string $blockId, string $key, mixed $data, string $url, string $cityId, string $lang): void
+    protected function saveSinglePayloadToCache(string $blockId, string $key, mixed $data, int $httpStatus, string $url, string $cityId, string $lang): void
     {
         $externalId = $blockId . ':' . $key;
-
         $payload = [
             '_meta' => [
                 'endpoint' => $key,
@@ -784,16 +792,15 @@ class TrendAgentSyncService
             ],
             'response' => $data,
         ];
-
-        TaPayloadCache::create([
-            'provider' => 'trendagent',
-            'scope' => 'block_detail',
-            'external_id' => $externalId,
-            'city_id' => $cityId,
-            'lang' => $lang,
-            'payload' => json_encode($payload),
-            'fetched_at' => now(),
-        ]);
+        PayloadCacheWriter::create(
+            'block_detail',
+            $externalId,
+            PayloadCacheWriter::endpointFromUrl($url),
+            $httpStatus,
+            $payload,
+            $cityId,
+            $lang,
+        );
     }
 
     /**
@@ -870,13 +877,22 @@ class TrendAgentSyncService
             }
 
             DB::transaction(function () use ($apartmentId, $cityId, $lang, $payloads) {
+                $normalized = ApartmentDetailNormalizer::normalize(
+                    $payloads['unified_payload'] ?? [],
+                    $payloads
+                );
+                $payloadHash = CanonicalPayload::payloadHash($payloads);
                 TaApartmentDetail::updateOrCreate(
                     [
                         'apartment_id' => $apartmentId,
                         'city_id' => $cityId,
                         'lang' => $lang,
                     ],
-                    array_merge($payloads, ['fetched_at' => now()])
+                    array_merge($payloads, [
+                        'normalized' => $normalized,
+                        'payload_hash' => $payloadHash,
+                        'fetched_at' => now(),
+                    ])
                 );
             });
 
@@ -902,10 +918,9 @@ class TrendAgentSyncService
         }
     }
 
-    protected function saveApartmentDetailPayloadToCache(string $apartmentId, string $key, mixed $data, string $url, string $cityId, string $lang): void
+    protected function saveApartmentDetailPayloadToCache(string $apartmentId, string $key, mixed $data, int $httpStatus, string $url, string $cityId, string $lang): void
     {
         $externalId = $apartmentId . ':' . $key;
-
         $payload = [
             '_meta' => [
                 'endpoint' => $key,
@@ -915,15 +930,14 @@ class TrendAgentSyncService
             ],
             'response' => $data,
         ];
-
-        TaPayloadCache::create([
-            'provider' => 'trendagent',
-            'scope' => 'sync_apartment_detail',
-            'external_id' => $externalId,
-            'city_id' => $cityId,
-            'lang' => $lang,
-            'payload' => json_encode($payload),
-            'fetched_at' => now(),
-        ]);
+        PayloadCacheWriter::create(
+            'sync_apartment_detail',
+            $externalId,
+            PayloadCacheWriter::endpointFromUrl($url),
+            $httpStatus,
+            $payload,
+            $cityId,
+            $lang,
+        );
     }
 }

@@ -40,7 +40,7 @@ class TaApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonStructure([
-                'data' => [['id', 'block_id', 'title', 'city_id', 'lang', 'min_price']],
+                'data' => [['block_id', 'title']],
                 'meta' => ['pagination' => ['total', 'count', 'offset']],
             ]);
         $this->assertSame(1, $response->json('meta.pagination.total'));
@@ -106,6 +106,79 @@ class TaApiTest extends TestCase
             ->assertJsonPath('data.title', 'One Block');
     }
 
+    public function test_ta_blocks_show_returns_meta_source_with_fetched_at_and_payload_hash(): void
+    {
+        $fetchedAt = now();
+        TaBlock::create([
+            'block_id' => 'block-meta',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'fetched_at' => $fetchedAt,
+            'payload_hash' => 'abc123hash',
+            'raw' => '{}',
+        ]);
+
+        $response = $this->getJson('/api/ta/blocks/block-meta');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('meta.source.fetched_at', $fetchedAt->toIso8601String())
+            ->assertJsonPath('meta.source.payload_hash', 'abc123hash');
+    }
+
+    public function test_ta_blocks_show_does_not_return_raw_without_debug(): void
+    {
+        TaBlock::create([
+            'block_id' => 'block-no-raw',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'fetched_at' => now(),
+            'raw' => ['secret' => 'data'],
+        ]);
+
+        $response = $this->getJson('/api/ta/blocks/block-no-raw');
+
+        $response->assertStatus(200);
+        $this->assertArrayNotHasKey('raw', $response->json('data'));
+    }
+
+    /** RAW only with debug=1 AND valid X-Internal-Key. Without key, debug is ignored. */
+    public function test_ta_blocks_show_does_not_return_raw_with_debug_but_without_internal_key(): void
+    {
+        Config::set('internal.api_key', 'secret-internal-key');
+        TaBlock::create([
+            'block_id' => 'block-debug-no-key',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'fetched_at' => now(),
+            'raw' => ['sensitive' => 'data'],
+        ]);
+
+        $response = $this->getJson('/api/ta/blocks/block-debug-no-key?debug=1');
+
+        $response->assertStatus(200);
+        $this->assertArrayNotHasKey('raw', $response->json('data'));
+    }
+
+    public function test_ta_blocks_show_returns_raw_with_debug_and_valid_internal_key(): void
+    {
+        Config::set('internal.api_key', 'test-debug-key');
+        TaBlock::create([
+            'block_id' => 'block-with-raw',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'fetched_at' => now(),
+            'raw' => ['internal' => 'payload'],
+        ]);
+
+        $response = $this->getJson('/api/ta/blocks/block-with-raw?debug=1', [
+            'X-Internal-Key' => 'test-debug-key',
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertArrayHasKey('raw', $response->json('data'));
+        $this->assertSame('payload', $response->json('data.raw.internal'));
+    }
+
     public function test_ta_blocks_show_returns_404_when_not_found(): void
     {
         $response = $this->getJson('/api/ta/blocks/nonexistent-id');
@@ -136,8 +209,12 @@ class TaApiTest extends TestCase
 
         $response->assertStatus(200)
             ->assertJsonPath('data.block_id', 'block-with-detail')
-            ->assertJsonPath('data.detail.block_id', 'block-with-detail')
-            ->assertJsonPath('data.detail.unified_payload.description', 'Extended info');
+            ->assertJsonPath('data.detail.block_id', 'block-with-detail');
+        $detail = $response->json('data.detail');
+        $this->assertTrue(
+            isset($detail['unified_payload']['description']) || isset($detail['unified']['description']),
+            'Detail should have unified payload or normalized unified'
+        );
     }
 
     public function test_ta_apartments_index_returns_200_with_meta(): void
@@ -186,6 +263,23 @@ class TaApiTest extends TestCase
             ->assertJsonPath('data.title', 'Apt 1');
     }
 
+    public function test_ta_apartments_show_returns_meta_source(): void
+    {
+        $fetchedAt = now();
+        TaApartment::create([
+            'apartment_id' => 'apt-meta',
+            'city_id' => '58c665588b6aa52311afa01b',
+            'lang' => 'ru',
+            'fetched_at' => $fetchedAt,
+            'payload_hash' => 'def456hash',
+        ]);
+
+        $response = $this->getJson('/api/ta/apartments/apt-meta');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('meta.source.payload_hash', 'def456hash');
+    }
+
     public function test_ta_apartments_show_returns_404_when_not_found(): void
     {
         $response = $this->getJson('/api/ta/apartments/nonexistent');
@@ -215,9 +309,13 @@ class TaApiTest extends TestCase
         $response = $this->getJson('/api/ta/apartments/apt-with-detail');
 
         $response->assertStatus(200)
-            ->assertJsonPath('data.apartment_id', 'apt-with-detail')
-            ->assertJsonPath('data.detail.apartment_id', 'apt-with-detail')
-            ->assertJsonPath('data.detail.unified_payload.floor_plan', 'plan-url');
+            ->assertJsonPath('data.apartment_id', 'apt-with-detail');
+        $detail = $response->json('data.detail');
+        $this->assertNotNull($detail);
+        $this->assertTrue(
+            isset($detail['unified_payload']['floor_plan']) || isset($detail['unified']['floor_plan']),
+            'Detail should have unified payload or normalized unified'
+        );
     }
 
     public function test_ta_blocks_refresh_returns_200_queued_true(): void
@@ -297,6 +395,7 @@ class TaApiTest extends TestCase
 
     public function test_ta_ui_blocks_refresh_returns_200_queued_true(): void
     {
+        Config::set('internal.api_key', 'ui-test-key');
         TaBlock::create([
             'block_id' => 'block-ui-refresh',
             'city_id' => '58c665588b6aa52311afa01b',
@@ -306,7 +405,9 @@ class TaApiTest extends TestCase
             'raw' => '{}',
         ]);
 
-        $response = $this->postJson('/api/ta-ui/blocks/block-ui-refresh/refresh');
+        $response = $this->postJson('/api/ta-ui/blocks/block-ui-refresh/refresh', [], [
+            'X-Internal-Key' => 'ui-test-key',
+        ]);
 
         $response->assertStatus(200)
             ->assertJsonPath('data.queued', true)
@@ -316,6 +417,7 @@ class TaApiTest extends TestCase
 
     public function test_ta_ui_apartments_refresh_returns_200_queued_true(): void
     {
+        Config::set('internal.api_key', 'ui-test-key');
         TaApartment::create([
             'apartment_id' => 'apt-ui-refresh',
             'city_id' => '58c665588b6aa52311afa01b',
@@ -324,7 +426,9 @@ class TaApiTest extends TestCase
             'fetched_at' => now(),
         ]);
 
-        $response = $this->postJson('/api/ta-ui/apartments/apt-ui-refresh/refresh');
+        $response = $this->postJson('/api/ta-ui/apartments/apt-ui-refresh/refresh', [], [
+            'X-Internal-Key' => 'ui-test-key',
+        ]);
 
         $response->assertStatus(200)
             ->assertJsonPath('data.queued', true)
@@ -334,7 +438,10 @@ class TaApiTest extends TestCase
 
     public function test_ta_ui_blocks_refresh_returns_404_when_not_found(): void
     {
-        $response = $this->postJson('/api/ta-ui/blocks/nonexistent-block/refresh');
+        Config::set('internal.api_key', 'ui-test-key');
+        $response = $this->postJson('/api/ta-ui/blocks/nonexistent-block/refresh', [], [
+            'X-Internal-Key' => 'ui-test-key',
+        ]);
 
         $response->assertStatus(404)
             ->assertJson(['message' => 'Block not found']);

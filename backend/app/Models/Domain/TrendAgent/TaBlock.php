@@ -27,6 +27,8 @@ class TaBlock extends Model
         'lat',
         'lng',
         'raw',
+        'normalized',
+        'payload_hash',
         'fetched_at',
     ];
 
@@ -35,6 +37,7 @@ class TaBlock extends Model
         'max_price' => 'integer',
         'lat' => 'decimal:7',
         'lng' => 'decimal:7',
+        'normalized' => 'array',
         'fetched_at' => 'datetime',
     ];
 

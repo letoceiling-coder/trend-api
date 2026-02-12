@@ -39,6 +39,7 @@
   - сессионный `refresh_token` хранится в HttpOnly cookie (недоступен JS);
   - короткоживущий `auth_token` (`~5 минут`) используется для доступа к API.
 - **Серверный логин** (`php artisan trendagent:auth:login`): команда выводит «successful» **только когда refresh_token реально сохранён в БД** (ta_sso_sessions). Иначе — «SSO login NOT saved» и инструкция по ручному сохранению токена.
+- **Self-healing (auto-relogin):** при TRENDAGENT_AUTO_RELOGIN=true возможен один programmatic relogin за вызов; действуют rate-limit (не чаще 1 раза в 10 мин на слот), cooldown 30 мин при частых неудачах, аудит в ta_relogin_events; при relogin_failed_last_24h > 0 отправляется алерт «Auth relogin failing». Подробнее: `backend/docs/trendagent/STAGE_AUTH_SELF_HEALING_REPORT.md` и `backend/docs/trendagent/STATUS.md` (раздел Auth self-healing).
 - **Продление токена**:
   - выполняется фронтендом через:
     - `GET https://sso-api.trend.tech/v1/auth_token/?city={CITY_ID}&lang=ru`
@@ -141,6 +142,15 @@
 
 Это позволяет фронтенду на Vite/Vue (`http://localhost:5173`) ходить к API на `http://127.0.0.1:8000/api/*`.
 
+### Безопасность TA-UI refresh (`/api/ta-ui/*`)
+
+Эндпоинты обновления блоков и квартир (`POST /api/ta-ui/blocks/{id}/refresh`, `POST /api/ta-ui/apartments/{id}/refresh`) защищены middleware **TaUiGuard** и rate-limit (10 запросов/мин):
+
+- **По умолчанию** доступ разрешён только при наличии заголовка **X-Internal-Key**, совпадающего с `INTERNAL_API_KEY` (тот же ключ, что и для `/api/ta/admin/*`).
+- **Опционально:** если задана переменная окружения **TA_UI_ALLOW_IPS** (список IP через запятую, например `1.2.3.4,5.6.7.8`), запросы **без** ключа разрешены только с этих IP; иначе возвращается 401.
+
+Фронт TaAdmin при наличии ключа отправляет `X-Internal-Key` при refresh; без ключа refresh возможен только с allowlist IP. Подробнее: `docs/trendagent/STAGE_TA_UI_SECURITY_REPORT.md`.
+
 ### TrendAgent SSO: логин
 
 Команда логина **без интерактивного ввода** (удобно на сервере и в CI):
@@ -172,6 +182,8 @@ php artisan trendagent:auth:save-refresh <token>
 
 ### Деплой на сервере
 
+Для production: скопировать **backend/docs/trendagent/env.prod.example** в **backend/.env** на сервере и заполнить (APP_KEY, INTERNAL_API_KEY, DB_*, REDIS_* и др.). См. **backend/docs/trendagent/PROD_RUNBOOK.md** (раздел 0. ENV).
+
 На сервере (после `git pull` или вручную) обновить код и зависимости одной командой:
 
 ```bash
@@ -192,6 +204,18 @@ php artisan deploy:server
 - `--dry-run` — только показать команды, не выполнять.
 
 Команда `php artisan deploy` (без `:server`) предназначена для запуска с локальной машины: push в git и выполнение шагов по SSH на сервере (см. `config/deploy.php` и переменные `DEPLOY_*` в `.env`).
+
+### Telegram-алерты в production
+
+Чтобы включить уведомления в Telegram при сбоях sync, качестве данных и т.п.:
+
+- В `.env` на сервере задать **TA_ALERT_TELEGRAM_BOT_TOKEN** и **TA_ALERT_TELEGRAM_CHAT_ID** (не хранить в репозитории).
+- Опционально: **TA_ALERT_QUIET_HOURS** (например `23:00-08:00`), **TA_ALERT_QUIET_HOURS_TIMEZONE** (по умолчанию `Europe/Kiev`) — в этот интервал алерты не отправляются, копятся в кэше; после выхода отправляется сводка.
+- Dedupe: один и тот же алерт не дублируется 30 минут.
+- Команда проверки: `php artisan ta:alerts:check --since=15m`. По расписанию команда запускается каждые 5 минут (Laravel schedule + cron `schedule:run`).
+- Если Telegram недоступен: приложение не падает, ошибка пишется в лог (fallback — мониторинг по логам и health).
+
+Подробнее: `backend/docs/trendagent/STATUS.md` (раздел Telegram Alerts). **Токены и секреты в сообщения и логи не попадают.**
 
 ---
 

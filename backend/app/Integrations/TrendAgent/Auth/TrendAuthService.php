@@ -2,6 +2,7 @@
 
 namespace App\Integrations\TrendAgent\Auth;
 
+use App\Models\Domain\TrendAgent\TaReloginEvent;
 use App\Models\Domain\TrendAgent\TaSsoSession;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
@@ -10,6 +11,12 @@ use RuntimeException;
 
 class TrendAuthService
 {
+    private const RELOGIN_RATE_TTL_MINUTES = 10;
+    private const RELOGIN_COOLDOWN_MINUTES = 30;
+    private const RELOGIN_FAILURES_THRESHOLD = 2;
+    private const RATE_KEY_PREFIX = 'ta:auth:relogin:last:';
+    private const COOLDOWN_KEY = 'ta:auth:relogin:cooldown';
+    private const FAILURES_KEY_PREFIX = 'ta:auth:relogin:failures:';
     public function __construct(
         protected TrendSsoClient $sso,
     ) {
@@ -102,7 +109,7 @@ class TrendAuthService
     /**
      * Self-healing: получить auth_token, при отсутствии/отклонении сессии
      * при TRENDAGENT_AUTO_RELOGIN=true выполнить один programmatic login и повторить.
-     * Максимум один авто-ре-логин на вызов.
+     * Rate-limit: не чаще 1 relogin в 10 мин на (phone, city_id). Cooldown 30 мин при частых неудачах.
      *
      * @throws \InvalidArgumentException если cityId пустой
      * @throws TrendAgentNotAuthenticatedException
@@ -127,11 +134,32 @@ class TrendAuthService
                 throw $e;
             }
 
+            $rateKey = self::RATE_KEY_PREFIX . $this->reloginSlotKey($phone, $cityId);
+            if (Cache::has($rateKey)) {
+                throw new TrendAgentNotAuthenticatedException(
+                    'Relogin rate-limited (max once per ' . self::RELOGIN_RATE_TTL_MINUTES . ' min).',
+                    0,
+                    $e
+                );
+            }
+
+            if (Cache::has(self::COOLDOWN_KEY)) {
+                throw new TrendAgentNotAuthenticatedException(
+                    'Relogin in cooldown (too many recent failures).',
+                    0,
+                    $e
+                );
+            }
+
             try {
                 $this->loginAndStoreSession($phone, $password, $lang);
             } catch (TrendAgentNotAuthenticatedException $loginEx) {
+                $this->recordReloginAttempt($cityId, false);
+                $this->incrementReloginFailures($phone, $cityId);
                 throw $loginEx;
             } catch (\Throwable $loginEx) {
+                $this->recordReloginAttempt($cityId, false);
+                $this->incrementReloginFailures($phone, $cityId);
                 throw new TrendAgentNotAuthenticatedException(
                     'Auto-relogin failed: ' . $this->sanitizeForLog($loginEx->getMessage()),
                     0,
@@ -139,15 +167,47 @@ class TrendAuthService
                 );
             }
 
+            $this->recordReloginAttempt($cityId, true);
+            $this->clearReloginFailures($phone, $cityId);
+            Cache::put($rateKey, true, self::RELOGIN_RATE_TTL_MINUTES * 60);
             $this->invalidate($cityId, $lang);
 
-            Log::info('TrendAgent auto-relogin attempted', [
+            Log::info('TrendAgent auto-relogin succeeded', [
                 'phone_masked' => self::maskPhone($phone),
                 'city_id' => $cityId,
             ]);
 
             return $this->getAuthToken($cityId, $lang);
         }
+    }
+
+    private function reloginSlotKey(string $phone, string $cityId): string
+    {
+        return hash('sha256', $phone . ':' . $cityId);
+    }
+
+    private function recordReloginAttempt(string $cityId, bool $success): void
+    {
+        TaReloginEvent::create([
+            'attempted_at' => now(),
+            'success' => $success,
+            'city_id' => $cityId,
+        ]);
+    }
+
+    private function incrementReloginFailures(string $phone, string $cityId): void
+    {
+        $key = self::FAILURES_KEY_PREFIX . $this->reloginSlotKey($phone, $cityId);
+        $count = (int) Cache::get($key, 0) + 1;
+        Cache::put($key, $count, self::RELOGIN_RATE_TTL_MINUTES * 60);
+        if ($count >= self::RELOGIN_FAILURES_THRESHOLD) {
+            Cache::put(self::COOLDOWN_KEY, true, self::RELOGIN_COOLDOWN_MINUTES * 60);
+        }
+    }
+
+    private function clearReloginFailures(string $phone, string $cityId): void
+    {
+        Cache::forget(self::FAILURES_KEY_PREFIX . $this->reloginSlotKey($phone, $cityId));
     }
 
     /**

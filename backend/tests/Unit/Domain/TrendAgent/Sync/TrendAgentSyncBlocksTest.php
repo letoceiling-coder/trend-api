@@ -49,7 +49,7 @@ class TrendAgentSyncBlocksTest extends TestCase
         $this->assertEquals('success', $run->status);
         $this->assertEquals(2, $run->items_fetched);
         $this->assertEquals(2, $run->items_saved);
-        $this->assertEquals(1, TaBlock::count());
+        $this->assertEquals(2, TaBlock::count());
     }
 
     public function test_shape_detector_finds_nested_data_items(): void

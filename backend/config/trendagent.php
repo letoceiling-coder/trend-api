@@ -116,5 +116,30 @@ return [
     */
     'detail_refresh_hours' => (int) env('TRENDAGENT_DETAIL_REFRESH_HOURS', 24),
     'detail_batch_size' => (int) env('TRENDAGENT_DETAIL_BATCH_SIZE', 50),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Telegram alerts (TA_ALERT_TELEGRAM_BOT_TOKEN, TA_ALERT_TELEGRAM_CHAT_ID)
+    |--------------------------------------------------------------------------
+    | When set, ta:alerts:check can send notifications on sync failures, quality
+    | degradation, and missing successful sync. Tokens are never logged.
+    | TA_ALERT_QUIET_HOURS: e.g. "23:00-08:00" (Europe/Kiev); alerts suppressed
+    | in that window and summarized after.
+    */
+    'alerts' => [
+        'telegram_bot_token' => env('TA_ALERT_TELEGRAM_BOT_TOKEN'),
+        'telegram_chat_id' => env('TA_ALERT_TELEGRAM_CHAT_ID'),
+        'quiet_hours' => env('TA_ALERT_QUIET_HOURS', ''), // e.g. "23:00-08:00"
+        'quiet_hours_timezone' => env('TA_ALERT_QUIET_HOURS_TIMEZONE', 'Europe/Kiev'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | TA-UI refresh (allowlist IP when no X-Internal-Key)
+    |--------------------------------------------------------------------------
+    | By default refresh requires X-Internal-Key. If TA_UI_ALLOW_IPS is set,
+    | requests without the key are allowed only from these IPs (comma-separated).
+    */
+    'ta_ui_allow_ips' => array_filter(array_map('trim', explode(',', env('TA_UI_ALLOW_IPS', '')))),
 ];
 

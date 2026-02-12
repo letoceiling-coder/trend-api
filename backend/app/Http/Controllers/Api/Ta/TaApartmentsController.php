@@ -10,6 +10,7 @@ use App\Jobs\TrendAgent\SyncApartmentDetailJob;
 use App\Models\Domain\TrendAgent\TaApartment;
 use App\Models\Domain\TrendAgent\TaApartmentDetail;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TaApartmentsController extends Controller
 {
@@ -57,8 +58,9 @@ class TaApartmentsController extends Controller
 
     /**
      * Show one apartment by apartment_id; include detail from ta_apartment_details if present.
+     * Always returns data.normalized and meta.source. RAW only when debug=1 and (INTERNAL_API_KEY or local).
      */
-    public function show(string $apartment_id): JsonResponse
+    public function show(Request $request, string $apartment_id): JsonResponse
     {
         $apartment = TaApartment::query()->where('apartment_id', $apartment_id)->first();
 
@@ -66,16 +68,44 @@ class TaApartmentsController extends Controller
             return response()->json(['message' => 'Apartment not found'], 404);
         }
 
-        $data = (new ApartmentResource($apartment))->toArray(request());
+        $data = $apartment->normalized ?? (new ApartmentResource($apartment))->toArray($request);
         $detail = TaApartmentDetail::query()->where('apartment_id', $apartment_id)->first();
         if ($detail) {
-            $data['detail'] = (new ApartmentDetailResource($detail))->toArray(request());
+            $data['detail'] = $detail->normalized ?? (new ApartmentDetailResource($detail))->toArray($request);
+        }
+
+        $meta = [
+            'source' => [
+                'fetched_at' => $apartment->fetched_at?->toIso8601String(),
+                'payload_hash' => $apartment->payload_hash,
+            ],
+        ];
+
+        if ($this->allowRawInResponse($request)) {
+            $data['raw'] = $apartment->raw;
+            if ($detail) {
+                $data['detail']['raw'] = [
+                    'unified_payload' => $detail->unified_payload,
+                    'prices_totals_payload' => $detail->prices_totals_payload,
+                    'prices_graph_payload' => $detail->prices_graph_payload,
+                ];
+            }
         }
 
         return response()->json([
             'data' => $data,
-            'meta' => (object) [],
+            'meta' => $meta,
         ]);
+    }
+
+    /** RAW only when debug=1 AND valid X-Internal-Key. Without key, debug is ignored (no raw). */
+    private function allowRawInResponse(Request $request): bool
+    {
+        if ($request->query('debug') !== '1') {
+            return false;
+        }
+        $key = config('internal.api_key');
+        return $key !== null && $key !== '' && $request->header('X-Internal-Key') === $key;
     }
 
     /**
