@@ -9,8 +9,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('ta_blocks', function (Blueprint $table) {
-            $table->json('normalized')->nullable()->after('raw');
-            $table->string('payload_hash', 64)->nullable()->after('normalized');
+            if (! Schema::hasColumn('ta_blocks', 'normalized')) {
+                if (Schema::hasColumn('ta_blocks', 'raw')) {
+                    $table->json('normalized')->nullable()->after('raw');
+                } else {
+                    $table->json('normalized')->nullable();
+                }
+            }
+            if (! Schema::hasColumn('ta_blocks', 'payload_hash')) {
+                $table->string('payload_hash', 64)->nullable()->after('normalized');
+            }
         });
 
         Schema::table('ta_apartments', function (Blueprint $table) {
