@@ -113,9 +113,11 @@ class TaCoverageService
         $directoriesByType = [];
         if (Schema::hasTable('ta_directories')) {
             $directoriesTotal = (int) DB::table('ta_directories')->count();
-            $dirRows = DB::table('ta_directories')->select('type')->selectRaw('COUNT(*) as c')->groupBy('type')->get();
-            foreach ($dirRows as $row) {
-                $directoriesByType[$row->type] = (int) $row->c;
+            if (Schema::hasColumn('ta_directories', 'type')) {
+                $dirRows = DB::table('ta_directories')->select('type')->selectRaw('COUNT(*) as c')->groupBy('type')->get();
+                foreach ($dirRows as $row) {
+                    $directoriesByType[$row->type] = (int) $row->c;
+                }
             }
         }
 
