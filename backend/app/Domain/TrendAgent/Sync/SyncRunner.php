@@ -76,6 +76,15 @@ class SyncRunner
             'error_code' => $errorCode,
         ]);
 
+        Log::error('TrendAgent sync failed', [
+            'scope' => $run->scope,
+            'city_id' => $run->city_id,
+            'lang' => $run->lang,
+            'run_id' => $run->id,
+            'error_message' => $errorMessage,
+            'error_code' => $errorCode,
+        ]);
+
         return $run->fresh();
     }
 

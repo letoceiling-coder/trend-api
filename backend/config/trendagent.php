@@ -79,6 +79,15 @@ return [
     */
     'default_city_id' => env('TRENDAGENT_DEFAULT_CITY_ID'),
     'default_lang' => env('TRENDAGENT_DEFAULT_LANG', 'ru'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | All regions: source for sync
+    |--------------------------------------------------------------------------
+    | When schedule runs trendagent:dispatch:blocks-all / apartments-all, regions
+    | are taken from ta_cities table. If ta_cities is empty, fallback to
+    | default_city_id (one region). Seed cities: php artisan trendagent:seed-cities
+    */
     'default_phone' => env('TRENDAGENT_DEFAULT_PHONE'),
     'default_password' => env('TRENDAGENT_DEFAULT_PASSWORD'),
 

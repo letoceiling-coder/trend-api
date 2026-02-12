@@ -19,8 +19,10 @@ class TrendagentDispatchStaleApartmentDetails extends Command
 
     public function handle(): int
     {
-        $cityId = $this->option('city') ?? Config::get('trendagent.default_city_id');
-        $lang = $this->option('lang') ?? Config::get('trendagent.default_lang', 'ru');
+        $cityOpt = $this->option('city');
+        $langOpt = $this->option('lang');
+        $cityId = $cityOpt === '' ? null : ($cityOpt ?? Config::get('trendagent.default_city_id'));
+        $lang = $langOpt === '' ? null : ($langOpt ?? Config::get('trendagent.default_lang', 'ru'));
         $refreshHours = (int) Config::get('trendagent.detail_refresh_hours', 24);
         $batchSize = (int) Config::get('trendagent.detail_batch_size', 50);
         $delaySeconds = (int) Config::get('trendagent.queue.detail_job_delay_seconds', 2);

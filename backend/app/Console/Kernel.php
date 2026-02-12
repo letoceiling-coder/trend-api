@@ -25,23 +25,23 @@ class Kernel extends ConsoleKernel
         // Runtime verification: queue worker heartbeat (worker runs this job and writes cache)
         $schedule->job(new TaQueueHeartbeatJob())->everyMinute();
 
-        // TrendAgent: blocks list every 15 min; detail jobs are dispatched by SyncBlocksJob after run
-        $schedule->command('trendagent:dispatch:blocks')
+        // TrendAgent: blocks list every 15 min for all regions (ta_cities or default city)
+        $schedule->command('trendagent:dispatch:blocks-all')
             ->everyFifteenMinutes()
             ->withoutOverlapping(10);
 
-        // TrendAgent: apartments list every 15 min; detail jobs are dispatched by SyncApartmentsJob after run
-        $schedule->command('trendagent:dispatch:apartments')
+        // TrendAgent: apartments list every 15 min for all regions
+        $schedule->command('trendagent:dispatch:apartments-all')
             ->everyFifteenMinutes()
             ->withoutOverlapping(10);
 
-        // TrendAgent: refresh stale/missing block details (hourly)
-        $schedule->command('trendagent:dispatch:stale-block-details')
+        // TrendAgent: refresh stale/missing block details (hourly, all cities)
+        $schedule->command('trendagent:dispatch:stale-block-details --city=')
             ->hourly()
             ->withoutOverlapping();
 
-        // TrendAgent: refresh stale/missing apartment details (hourly)
-        $schedule->command('trendagent:dispatch:stale-apartment-details')
+        // TrendAgent: refresh stale/missing apartment details (hourly, all cities)
+        $schedule->command('trendagent:dispatch:stale-apartment-details --city=')
             ->hourly()
             ->withoutOverlapping();
 
