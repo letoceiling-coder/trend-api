@@ -65,6 +65,7 @@ Route::prefix('ta')->group(function () {
         Route::get('quality-checks', [QualityChecksController::class, 'index']);
         Route::get('health', [HealthController::class, 'index']);
         Route::get('coverage', [CoverageController::class, 'index']);
+        Route::get('stats', [StatsController::class, 'index']);
         Route::post('pipeline/run', [PipelineController::class, 'run']);
     });
 });
