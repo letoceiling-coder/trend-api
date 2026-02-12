@@ -19,16 +19,16 @@ function isActive(path: string) {
 <template>
   <nav class="objects-header__view d-flex">
     <div class="group objects-header__view-group" role="group">
-      <div class="group__elements flex rounded-lg border border-slate-700 bg-slate-800/50 p-0.5">
+      <div class="group__elements flex rounded-lg border border-ta-border bg-white p-0.5 shadow-sm">
         <RouterLink
           v-for="v in views"
           :key="v.type"
           :to="v.path"
-          class="objects-header__view-button btn px-3 py-2 text-sm font-medium transition"
+          class="objects-header__view-button btn px-3 py-2 text-sm font-medium transition-colors rounded-md"
           :class="
             isActive(v.path)
-              ? 'bg-slate-600 text-white rounded-md'
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-md'
+              ? 'bg-ta-text text-white'
+              : 'text-ta-text-muted hover:text-ta-text hover:bg-ta-border/30'
           "
         >
           <span class="btn__content inline-flex items-center gap-2">

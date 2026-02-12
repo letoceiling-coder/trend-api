@@ -11,7 +11,7 @@ const model = defineModel<string>({ default: '' });
         v-model="model"
         type="text"
         placeholder="Метро, район, локация, ЖК, улица..."
-        class="field text-field__element w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+        class="field text-field__element w-full rounded-lg border border-ta-border bg-white px-4 py-2.5 text-ta-text placeholder-ta-text-muted focus:border-ta-text focus:outline-none focus:ring-1 focus:ring-ta-border"
       />
     </div>
   </div>

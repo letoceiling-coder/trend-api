@@ -89,7 +89,7 @@ function cardFromBlock(b: BlockItem) {
             :count="total"
             :show-sort="true"
           />
-          <div v-if="loading" class="py-12 text-center text-slate-400">
+          <div v-if="loading" class="py-12 text-center text-ta-text-muted">
             Загрузка...
           </div>
           <template v-else>

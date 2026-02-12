@@ -18,19 +18,19 @@ const emit = defineEmits<{ (e: 'update:page', value: number): void }>();
   >
     <button
       type="button"
-      class="rounded border border-slate-600 px-3 py-1.5 text-sm disabled:opacity-50"
+      class="rounded border border-ta-border bg-white px-3 py-1.5 text-sm text-ta-text hover:bg-ta-border/50 disabled:opacity-50 transition-colors"
       :disabled="page <= 1"
       @click="emit('update:page', page - 1)"
     >
       Назад
     </button>
-    <span class="text-sm text-slate-400">
+    <span class="text-sm text-ta-text-muted">
       {{ page }} / {{ totalPages }}
       <span v-if="total != null"> (всего {{ total }})</span>
     </span>
     <button
       type="button"
-      class="rounded border border-slate-600 px-3 py-1.5 text-sm disabled:opacity-50"
+      class="rounded border border-ta-border bg-white px-3 py-1.5 text-sm text-ta-text hover:bg-ta-border/50 disabled:opacity-50 transition-colors"
       :disabled="page >= totalPages"
       @click="emit('update:page', page + 1)"
     >

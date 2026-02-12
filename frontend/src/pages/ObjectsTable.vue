@@ -56,7 +56,7 @@ const currentPage = computed({
           <FiltersSearch v-model="search" />
           <button
             type="button"
-            class="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+            class="rounded-lg border border-ta-border bg-white px-4 py-2 text-sm text-ta-text hover:bg-ta-border/50 transition-colors"
             @click="load"
           >
             Применить
@@ -71,50 +71,50 @@ const currentPage = computed({
             :count="total"
             :show-sort="true"
           />
-          <div v-if="loading" class="py-12 text-center text-slate-400">
+          <div v-if="loading" class="py-12 text-center text-ta-text-muted">
             Загрузка...
           </div>
           <template v-else>
-            <div class="overflow-x-auto rounded-lg border border-slate-700">
+            <div class="overflow-x-auto rounded-lg border border-ta-border shadow-sm">
               <table class="table w-full border-collapse text-left text-sm">
                 <thead>
-                  <tr class="border-b border-slate-700 bg-slate-800/80">
-                    <th class="table-row px-4 py-3 font-medium text-slate-300">ID</th>
-                    <th class="table-row px-4 py-3 font-medium text-slate-300">Название</th>
-                    <th class="table-row px-4 py-3 font-medium text-slate-300">Площадь</th>
-                    <th class="table-row px-4 py-3 font-medium text-slate-300">Цена</th>
-                    <th class="table-row px-4 py-3 font-medium text-slate-300">Комнат</th>
+                  <tr class="border-b border-ta-border bg-ta-border/30">
+                    <th class="table-row px-4 py-3 font-medium text-ta-text">ID</th>
+                    <th class="table-row px-4 py-3 font-medium text-ta-text">Название</th>
+                    <th class="table-row px-4 py-3 font-medium text-ta-text">Площадь</th>
+                    <th class="table-row px-4 py-3 font-medium text-ta-text">Цена</th>
+                    <th class="table-row px-4 py-3 font-medium text-ta-text">Комнат</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr
                     v-for="a in apartments"
                     :key="a.apartment_id"
-                    class="table-row border-b border-slate-700/80 hover:bg-slate-800/50"
+                    class="table-row border-b border-ta-border hover:bg-ta-border/20 transition-colors"
                   >
-                    <td class="px-4 py-3 text-slate-200">
+                    <td class="px-4 py-3 text-ta-text">
                       <RouterLink
                         :to="`/flat/${a.apartment_id}`"
-                        class="text-sky-400 hover:underline"
+                        class="text-blue-600 hover:underline"
                       >
                         {{ a.apartment_id }}
                       </RouterLink>
                     </td>
-                    <td class="px-4 py-3 text-slate-200">
+                    <td class="px-4 py-3 text-ta-text">
                       <RouterLink
                         :to="`/flat/${a.apartment_id}`"
-                        class="text-sky-400 hover:underline"
+                        class="text-blue-600 hover:underline"
                       >
                         {{ a.title ?? '—' }}
                       </RouterLink>
                     </td>
-                    <td class="px-4 py-3 text-slate-200">
+                    <td class="px-4 py-3 text-ta-text">
                       {{ a.area_total != null ? `${a.area_total} м²` : '—' }}
                     </td>
-                    <td class="px-4 py-3 text-slate-200">
+                    <td class="px-4 py-3 text-ta-text">
                       {{ a.price != null ? `${Number(a.price).toLocaleString('ru-RU')} ₽` : '—' }}
                     </td>
-                    <td class="px-4 py-3 text-slate-200">{{ a.rooms ?? '—' }}</td>
+                    <td class="px-4 py-3 text-ta-text">{{ a.rooms ?? '—' }}</td>
                   </tr>
                 </tbody>
               </table>
